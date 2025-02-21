@@ -282,6 +282,11 @@ async def button(update, context):
     
     query = update.callback_query
     await query.answer()
+
+    # Перевіряємо, чи бот чекає на введення RR
+    if user_data[auth_key].get('waiting_for_rr'):
+        await query.edit_message_text('Введи RR вручну (наприклад, 2.5):')
+        return  # Ігноруємо будь-які callback-запити, чекаємо текст у handle_text
     
     if query.data == 'add_trade':
         keyboard = [
@@ -327,10 +332,8 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Test POI?', reply_markup=reply_markup)
-        print("Запит Test POI відправлено")
     
     elif query.data.startswith('testpoi_'):
-        print(f"Отримано callback_data: {query.data}")
         user_data[auth_key]['Test POI'] = query.data.split('_')[1]
         print(f"Оновлено Test POI: {user_data[auth_key]}")
         keyboard = [
