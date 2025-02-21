@@ -88,6 +88,7 @@ async def start(update, context):
         await update.message.reply_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
 
 # Обробка текстового вводу
+# Обробка текстового вводу
 async def handle_text(update, context):
     global user_data
     user_id = str(update.message.from_user.id)
@@ -100,7 +101,6 @@ async def handle_text(update, context):
         text = update.message.text
         if len(text) == 32:
             user_data[auth_key]['database_id'] = text
-            # Зберігаємо в HEROKU_USER_DATA через Heroku API
             conn = heroku3.from_key(HEROKU_API_KEY)
             heroku_app = conn.apps()['tradenotionbot-lg2']
             heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
@@ -112,26 +112,33 @@ async def handle_text(update, context):
         try:
             rr = float(rr_input)
             user_data[auth_key]['RR'] = rr
-            create_notion_page(auth_key)
-            await update.message.reply_text(format_summary(user_data[auth_key]))
-            del user_data[auth_key]['waiting_for_rr']
-            del user_data[auth_key]['Pair']
-            del user_data[auth_key]['Session']
-            del user_data[auth_key]['Context']
-            del user_data[auth_key]['Test POI']
-            del user_data[auth_key]['Delivery to POI']
-            del user_data[auth_key]['Point A']
-            del user_data[auth_key]['Trigger']
-            del user_data[auth_key]['VC']
-            del user_data[auth_key]['Entry model']
-            del user_data[auth_key]['Entry TF']
-            del user_data[auth_key]['Point B']
-            del user_data[auth_key]['SL Position']
-            del user_data[auth_key]['RR']
-            # Зберігаємо оновлення
-            conn = heroku3.from_key(HEROKU_API_KEY)
-            heroku_app = conn.apps()['tradenotionbot-lg2']
-            heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+            # Перевіряємо, чи всі необхідні ключі присутні
+            required_keys = ['Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
+                            'Trigger', 'VC', 'Entry model', 'Entry TF', 'Point B', 'SL Position', 'RR']
+            missing_keys = [key for key in required_keys if key not in user_data[auth_key]]
+            if missing_keys:
+                await update.message.reply_text(f"Помилка: відсутні дані для {', '.join(missing_keys)}. Почни заново через 'Додати трейд'.")
+            else:
+                create_notion_page(auth_key)
+                await update.message.reply_text(format_summary(user_data[auth_key]))
+                del user_data[auth_key]['waiting_for_rr']
+                del user_data[auth_key]['Pair']
+                del user_data[auth_key]['Session']
+                del user_data[auth_key]['Context']
+                del user_data[auth_key]['Test POI']
+                del user_data[auth_key]['Delivery to POI']
+                del user_data[auth_key]['Point A']
+                del user_data[auth_key]['Trigger']
+                del user_data[auth_key]['VC']
+                del user_data[auth_key]['Entry model']
+                del user_data[auth_key]['Entry TF']
+                del user_data[auth_key]['Point B']
+                del user_data[auth_key]['SL Position']
+                del user_data[auth_key]['RR']
+                # Зберігаємо оновлення
+                conn = heroku3.from_key(HEROKU_API_KEY)
+                heroku_app = conn.apps()['tradenotionbot-lg2']
+                heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
         except ValueError:
             await update.message.reply_text("Введи коректне число для RR (наприклад, 2.5):")
     else:
