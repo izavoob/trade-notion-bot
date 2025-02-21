@@ -136,57 +136,44 @@ async def handle_text(update, context):
                 logger.error(f"Missing required keys for user {user_id}: {missing_keys}")
                 await update.message.reply_text(f"Помилка: відсутні дані для {', '.join(missing_keys)}. Почни заново через 'Додати трейд'.")
             else:
-                logger.info(f"Attempting to create Notion page for user {user_id} with data: {json.dumps(user_data[auth_key], indent=2)}")
-                success = create_notion_page(auth_key)
-                if success:
-                    await update.message.reply_text(format_summary(user_data[auth_key]) + "\nТрейд успішно додано!")
-                    conn = heroku3.from_key(HEROKU_API_KEY)
-                    heroku_app = conn.apps()['tradenotionbot-lg2']
-                    heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-                    logger.info(f"Trade added successfully for user {user_id}. Updated user_data: {json.dumps(user_data, indent=2)}")
-                    del user_data[auth_key]['waiting_for_rr']
-                    del user_data[auth_key]['Pair']
-                    del user_data[auth_key]['Session']
-                    del user_data[auth_key]['Context']
-                    del user_data[auth_key]['Test POI']
-                    del user_data[auth_key]['Delivery to POI']
-                    del user_data[auth_key]['Point A']
-                    del user_data[auth_key]['Trigger']
-                    del user_data[auth_key]['VC']
-                    del user_data[auth_key]['Entry Model']
-                    del user_data[auth_key]['Entry TF']
-                    del user_data[auth_key]['Point B']
-                    del user_data[auth_key]['SL Position']
-                    del user_data[auth_key]['RR']
-                else:
-                    await update.message.reply_text("Помилка: не вдалося додати трейд у Notion. Перевір логи.")
+                # Виводимо зібрану інформацію для перевірки
+                summary = format_summary(user_data[auth_key])
+                keyboard = [
+                    [InlineKeyboardButton("Відправити", callback_data='submit_trade')],
+                    [InlineKeyboardButton("Змінити", callback_data='edit_trade')]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await update.message.reply_text(f"{summary}\n\nПеревір дані. Якщо все правильно, натисни 'Відправити'. Якщо щось не так, натисни 'Змінити'.", reply_markup=reply_markup)
+                logger.info(f"Displayed summary for user {user_id} to confirm or edit.")
         except ValueError:
             logger.warning(f"Invalid RR input from user {user_id}: {rr_input}")
             await update.message.reply_text("Введи коректне число для RR (наприклад, 2.5):")
         except Exception as e:
-            logger.error(f"Error adding trade for user {user_id}: {str(e)}", exc_info=True)
-            await update.message.reply_text(f"Помилка при додаванні трейду: {str(e)}. Спробуй ще раз.")
+            logger.error(f"Error processing RR for user {user_id}: {str(e)}", exc_info=True)
+            await update.message.reply_text(f"Помилка при обробці RR: {str(e)}. Спробуй ще раз.")
     else:
         await update.message.reply_text("Спочатку почни додавання трейду через /start.")
         logger.info(f"User {user_id} sent text outside of trade flow: {update.message.text}")
 
 # Форматування підсумку
 def format_summary(data):
+    trigger_str = ", ".join(data.get('Trigger', [])) if isinstance(data.get('Trigger'), list) else data.get('Trigger', '')
+    vc_str = ", ".join(data.get('VC', [])) if isinstance(data.get('VC'), list) else data.get('VC', '')
     summary = (
-        f"Трейд додано!\n"
-        f"Pair: {data['Pair']}\n"
-        f"Session: {data['Session']}\n"
-        f"Context: {data['Context']}\n"
-        f"Test POI: {data['Test POI']}\n"
-        f"Delivery to POI: {data['Delivery to POI']}\n"
-        f"Point A: {data['Point A']}\n"
-        f"Trigger: {data['Trigger']}\n"
-        f"VC: {data['VC']}\n"
-        f"Entry Model: {data['Entry Model']}\n"
-        f"Entry TF: {data['Entry TF']}\n"
-        f"Point B: {data['Point B']}\n"
-        f"SL Position: {data['SL Position']}\n"
-        f"RR: {data['RR']}"
+        f"Зібрана інформація:\n"
+        f"Pair: {data.get('Pair', '')}\n"
+        f"Session: {data.get('Session', '')}\n"
+        f"Context: {data.get('Context', '')}\n"
+        f"Test POI: {data.get('Test POI', '')}\n"
+        f"Delivery to POI: {data.get('Delivery to POI', '')}\n"
+        f"Point A: {data.get('Point A', '')}\n"
+        f"Trigger: {trigger_str}\n"
+        f"VC: {vc_str}\n"
+        f"Entry Model: {data.get('Entry Model', '')}\n"
+        f"Entry TF: {data.get('Entry TF', '')}\n"
+        f"Point B: {data.get('Point B', '')}\n"
+        f"SL Position: {data.get('SL Position', '')}\n"
+        f"RR: {data.get('RR', '')}"
     )
     logger.info(f"Generated trade summary: {summary}")
     return summary
@@ -201,6 +188,8 @@ def create_notion_page(user_id):
         'Notion-Version': "2022-06-28"
     }
     
+    trigger_values = user_data[user_id].get('Trigger', [])
+    vc_values = user_data[user_id].get('VC', [])
     payload = {
         'parent': {'database_id': user_data[user_id]['classification_db_id']},
         'properties': {
@@ -210,8 +199,8 @@ def create_notion_page(user_id):
             'Test POI': {'select': {'name': user_data[user_id]['Test POI']}},
             'Delivery to POI': {'select': {'name': user_data[user_id]['Delivery to POI']}},
             'Point A': {'select': {'name': user_data[user_id]['Point A']}},
-            'Trigger': {'multi_select': [{'name': user_data[user_id]['Trigger']}]},
-            'VC': {'multi_select': [{'name': user_data[user_id]['VC']}]},
+            'Trigger': {'multi_select': [{'name': value} for value in trigger_values] if trigger_values else []},
+            'VC': {'multi_select': [{'name': value} for value in vc_values] if vc_values else []},
             'Entry Model': {'select': {'name': user_data[user_id]['Entry Model']}},
             'Entry TF': {'select': {'name': user_data[user_id]['Entry TF']}},
             'Point B': {'select': {'name': user_data[user_id]['Point B']}},
@@ -252,11 +241,13 @@ async def button(update, context):
         logger.warning(f"User {user_id} has not provided parent_page_id.")
         return
     
-    if user_data[auth_key].get('waiting_for_rr'):
-        await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):')
-        logger.info(f"User {user_id} in waiting_for_rr state, prompted for RR input.")
-        return
-    
+    # Ініціалізація списків для мультивибору, якщо їх ще немає
+    if 'Trigger' not in user_data[auth_key]:
+        user_data[auth_key]['Trigger'] = []
+    if 'VC' not in user_data[auth_key]:
+        user_data[auth_key]['VC'] = []
+
+    # Логіка повернення назад і мультивибору
     if query.data == 'add_trade':
         keyboard = [
             [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
@@ -277,7 +268,8 @@ async def button(update, context):
             [InlineKeyboardButton("Frankfurt", callback_data='session_Frankfurt')],
             [InlineKeyboardButton("London", callback_data='session_London')],
             [InlineKeyboardButton("Out of OTT", callback_data='session_Out of OTT')],
-            [InlineKeyboardButton("New York", callback_data='session_New York')]
+            [InlineKeyboardButton("New York", callback_data='session_New York')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_start')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Session?', reply_markup=reply_markup)
@@ -288,7 +280,8 @@ async def button(update, context):
         keyboard = [
             [InlineKeyboardButton("By Context", callback_data='context_By Context')],
             [InlineKeyboardButton("Against Context", callback_data='context_Against Context')],
-            [InlineKeyboardButton("Neutral Context", callback_data='context_Neutral Context')]
+            [InlineKeyboardButton("Neutral Context", callback_data='context_Neutral Context')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_pair')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Context?', reply_markup=reply_markup)
@@ -298,7 +291,8 @@ async def button(update, context):
         logger.info(f"Updated Context for user {user_id}: {user_data[auth_key]['Context']}")
         keyboard = [
             [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
-            [InlineKeyboardButton(">50@ or FullFill", callback_data='testpoi_>50@ or FullFill')]
+            [InlineKeyboardButton(">50@ or FullFill", callback_data='testpoi_>50@ or FullFill')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_session')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Test POI?', reply_markup=reply_markup)
@@ -308,7 +302,8 @@ async def button(update, context):
         logger.info(f"Updated Test POI for user {user_id}: {user_data[auth_key]['Test POI']}")
         keyboard = [
             [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
-            [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')]
+            [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_context')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
@@ -320,7 +315,8 @@ async def button(update, context):
             [InlineKeyboardButton("Fractal Raid", callback_data='pointa_Fractal Raid')],
             [InlineKeyboardButton("RB", callback_data='pointa_RB')],
             [InlineKeyboardButton("FVG", callback_data='pointa_FVG')],
-            [InlineKeyboardButton("SNR", callback_data='pointa_SNR')]
+            [InlineKeyboardButton("SNR", callback_data='pointa_SNR')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_testpoi')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Point A?', reply_markup=reply_markup)
@@ -331,30 +327,67 @@ async def button(update, context):
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
-            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')]
+            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')],
+            [InlineKeyboardButton("Готово", callback_data='trigger_done')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_delivery')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Trigger?', reply_markup=reply_markup)
+        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger'])})", reply_markup=reply_markup)
     
     elif query.data.startswith('trigger_'):
-        user_data[auth_key]['Trigger'] = query.data.split('_')[1]
-        logger.info(f"Updated Trigger for user {user_id}: {user_data[auth_key]['Trigger']}")
+        trigger_value = query.data.split('_')[1]
+        if trigger_value not in user_data[auth_key]['Trigger']:
+            user_data[auth_key]['Trigger'].append(trigger_value)
+        logger.info(f"Added Trigger for user {user_id}: {trigger_value}. Current Trigger: {user_data[auth_key]['Trigger']}")
+        keyboard = [
+            [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
+            [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
+            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')],
+            [InlineKeyboardButton("Готово", callback_data='trigger_done')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_pointa')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger'])})", reply_markup=reply_markup)
+    
+    elif query.data == 'trigger_done':
+        if not user_data[auth_key]['Trigger']:
+            await query.edit_message_text("Обери хоча б один Trigger!")
+            return
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
-            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')]
+            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
+            [InlineKeyboardButton("Готово", callback_data='vc_done')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_pointa')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('VC?', reply_markup=reply_markup)
+        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC'])})", reply_markup=reply_markup)
     
     elif query.data.startswith('vc_'):
-        user_data[auth_key]['VC'] = query.data.split('_')[1]
-        logger.info(f"Updated VC for user {user_id}: {user_data[auth_key]['VC']}")
+        vc_value = query.data.split('_')[1]
+        if vc_value not in user_data[auth_key]['VC']:
+            user_data[auth_key]['VC'].append(vc_value)
+        logger.info(f"Added VC for user {user_id}: {vc_value}. Current VC: {user_data[auth_key]['VC']}")
+        keyboard = [
+            [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
+            [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
+            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
+            [InlineKeyboardButton("Готово", callback_data='vc_done')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_trigger')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC'])})", reply_markup=reply_markup)
+    
+    elif query.data == 'vc_done':
+        if not user_data[auth_key]['VC']:
+            await query.edit_message_text("Обери хоча б один VC!")
+            return
         keyboard = [
             [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
             [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
             [InlineKeyboardButton("SNR", callback_data='entrymodel_SNR')],
-            [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')]
+            [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_trigger')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
@@ -367,7 +400,8 @@ async def button(update, context):
             [InlineKeyboardButton("5m", callback_data='entrytf_5m')],
             [InlineKeyboardButton("15m", callback_data='entrytf_15m')],
             [InlineKeyboardButton("1H/30m", callback_data='entrytf_1H/30m')],
-            [InlineKeyboardButton("4H", callback_data='entrytf_4H')]
+            [InlineKeyboardButton("4H", callback_data='entrytf_4H')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_vc')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Entry TF?', reply_markup=reply_markup)
@@ -377,7 +411,8 @@ async def button(update, context):
         logger.info(f"Updated Entry TF for user {user_id}: {user_data[auth_key]['Entry TF']}")
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='pointb_Fractal Swing')],
-            [InlineKeyboardButton("FVG", callback_data='pointb_FVG')]
+            [InlineKeyboardButton("FVG", callback_data='pointb_FVG')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_entrymodel')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Point B?', reply_markup=reply_markup)
@@ -388,7 +423,8 @@ async def button(update, context):
         keyboard = [
             [InlineKeyboardButton("LTF/Lunch Manipulation", callback_data='slposition_LTF/Lunch Manipulation')],
             [InlineKeyboardButton("1H/30m Raid", callback_data='slposition_1H/30m Raid')],
-            [InlineKeyboardButton("4H Raid", callback_data='slposition_4H Raid')]
+            [InlineKeyboardButton("4H Raid", callback_data='slposition_4H Raid')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_entrytf')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('SL Position?', reply_markup=reply_markup)
@@ -397,6 +433,295 @@ async def button(update, context):
         user_data[auth_key]['SL Position'] = query.data.split('_')[1]
         user_data[auth_key]['waiting_for_rr'] = True
         logger.info(f"Updated SL Position and set waiting_for_rr for user {user_id}: {json.dumps(user_data[auth_key], indent=2)}")
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Назад", callback_data='back_to_pointb')]]))
+
+    # Логіка повернення назад
+    elif query.data == 'back_to_start':
+        keyboard = [[InlineKeyboardButton("Додати трейд", callback_data='add_trade')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
+    
+    elif query.data == 'back_to_pair':
+        keyboard = [
+            [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
+            [InlineKeyboardButton("GBPUSD", callback_data='pair_GBPUSD')],
+            [InlineKeyboardButton("USDJPY", callback_data='pair_USDJPY')],
+            [InlineKeyboardButton("XAUUSD", callback_data='pair_XAUUSD')],
+            [InlineKeyboardButton("GER40", callback_data='pair_GER40')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Pair?', reply_markup=reply_markup)
+    
+    elif query.data == 'back_to_session':
+        keyboard = [
+            [InlineKeyboardButton("Asia", callback_data='session_Asia')],
+            [InlineKeyboardButton("Frankfurt", callback_data='session_Frankfurt')],
+            [InlineKeyboardButton("London", callback_data='session_London')],
+            [InlineKeyboardButton("Out of OTT", callback_data='session_Out of OTT')],
+            [InlineKeyboardButton("New York", callback_data='session_New York')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_pair')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Session?', reply_markup=reply_markup)
+    
+    elif query.data == 'back_to_context':
+        keyboard = [
+            [InlineKeyboardButton("By Context", callback_data='context_By Context')],
+            [InlineKeyboardButton("Against Context", callback_data='context_Against Context')],
+            [InlineKeyboardButton("Neutral Context", callback_data='context_Neutral Context')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_session')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Context?', reply_markup=reply_markup)
+    
+    elif query.data == 'back_to_testpoi':
+        keyboard = [
+            [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
+            [InlineKeyboardButton(">50@ or FullFill", callback_data='testpoi_>50@ or FullFill')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_context')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Test POI?', reply_markup=reply_markup)
+    
+    elif query.data == 'back_to_delivery':
+        keyboard = [
+            [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
+            [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_testpoi')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
+    
+    elif query.data == 'back_to_pointa':
+        keyboard = [
+            [InlineKeyboardButton("Fractal Raid", callback_data='pointa_Fractal Raid')],
+            [InlineKeyboardButton("RB", callback_data='pointa_RB')],
+            [InlineKeyboardButton("FVG", callback_data='pointa_FVG')],
+            [InlineKeyboardButton("SNR", callback_data='pointa_SNR')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_delivery')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Point A?', reply_markup=reply_markup)
+    
+    elif query.data == 'back_to_trigger':
+        keyboard = [
+            [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
+            [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
+            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')],
+            [InlineKeyboardButton("Готово", callback_data='trigger_done')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_pointa')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger'])})", reply_markup=reply_markup)
+    
+    elif query.data == 'back_to_vc':
+        keyboard = [
+            [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
+            [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
+            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
+            [InlineKeyboardButton("Готово", callback_data='vc_done')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_trigger')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC'])})", reply_markup=reply_markup)
+    
+    elif query.data == 'back_to_entrymodel':
+        keyboard = [
+            [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
+            [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
+            [InlineKeyboardButton("SNR", callback_data='entrymodel_SNR')],
+            [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_vc')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
+    
+    elif query.data == 'back_to_entrytf':
+        keyboard = [
+            [InlineKeyboardButton("3m", callback_data='entrytf_3m')],
+            [InlineKeyboardButton("5m", callback_data='entrytf_5m')],
+            [InlineKeyboardButton("15m", callback_data='entrytf_15m')],
+            [InlineKeyboardButton("1H/30m", callback_data='entrytf_1H/30m')],
+            [InlineKeyboardButton("4H", callback_data='entrytf_4H')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_entrymodel')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Entry TF?', reply_markup=reply_markup)
+    
+    elif query.data == 'back_to_pointb':
+        keyboard = [
+            [InlineKeyboardButton("Fractal Swing", callback_data='pointb_Fractal Swing')],
+            [InlineKeyboardButton("FVG", callback_data='pointb_FVG')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_entrytf')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Point B?', reply_markup=reply_markup)
+
+    # Логіка підтвердження або редагування
+    elif query.data == 'submit_trade':
+        success = create_notion_page(auth_key)
+        if success:
+            await query.edit_message_text("Трейд успішно додано до Notion!")
+            conn = heroku3.from_key(HEROKU_API_KEY)
+            heroku_app = conn.apps()['tradenotionbot-lg2']
+            heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+            logger.info(f"Trade submitted successfully for user {user_id}. Updated user_data: {json.dumps(user_data, indent=2)}")
+            del user_data[auth_key]['waiting_for_rr']
+            del user_data[auth_key]['Pair']
+            del user_data[auth_key]['Session']
+            del user_data[auth_key]['Context']
+            del user_data[auth_key]['Test POI']
+            del user_data[auth_key]['Delivery to POI']
+            del user_data[auth_key]['Point A']
+            del user_data[auth_key]['Trigger']
+            del user_data[auth_key]['VC']
+            del user_data[auth_key]['Entry Model']
+            del user_data[auth_key]['Entry TF']
+            del user_data[auth_key]['Point B']
+            del user_data[auth_key]['SL Position']
+            del user_data[auth_key]['RR']
+        else:
+            await query.edit_message_text("Помилка при відправці трейду в Notion. Перевір логи.")
+    
+    elif query.data == 'edit_trade':
+        keyboard = [
+            [InlineKeyboardButton("Pair", callback_data='edit_pair')],
+            [InlineKeyboardButton("Session", callback_data='edit_session')],
+            [InlineKeyboardButton("Context", callback_data='edit_context')],
+            [InlineKeyboardButton("Test POI", callback_data='edit_testpoi')],
+            [InlineKeyboardButton("Delivery to POI", callback_data='edit_delivery')],
+            [InlineKeyboardButton("Point A", callback_data='edit_pointa')],
+            [InlineKeyboardButton("Trigger", callback_data='edit_trigger')],
+            [InlineKeyboardButton("VC", callback_data='edit_vc')],
+            [InlineKeyboardButton("Entry Model", callback_data='edit_entrymodel')],
+            [InlineKeyboardButton("Entry TF", callback_data='edit_entrytf')],
+            [InlineKeyboardButton("Point B", callback_data='edit_pointb')],
+            [InlineKeyboardButton("SL Position", callback_data='edit_slposition')],
+            [InlineKeyboardButton("RR", callback_data='edit_rr')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text("Який параметр хочеш змінити?", reply_markup=reply_markup)
+    
+    # Логіка редагування
+    elif query.data == 'edit_pair':
+        keyboard = [
+            [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
+            [InlineKeyboardButton("GBPUSD", callback_data='pair_GBPUSD')],
+            [InlineKeyboardButton("USDJPY", callback_data='pair_USDJPY')],
+            [InlineKeyboardButton("XAUUSD", callback_data='pair_XAUUSD')],
+            [InlineKeyboardButton("GER40", callback_data='pair_GER40')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Pair?', reply_markup=reply_markup)
+    
+    elif query.data == 'edit_session':
+        keyboard = [
+            [InlineKeyboardButton("Asia", callback_data='session_Asia')],
+            [InlineKeyboardButton("Frankfurt", callback_data='session_Frankfurt')],
+            [InlineKeyboardButton("London", callback_data='session_London')],
+            [InlineKeyboardButton("Out of OTT", callback_data='session_Out of OTT')],
+            [InlineKeyboardButton("New York", callback_data='session_New York')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Session?', reply_markup=reply_markup)
+    
+    elif query.data == 'edit_context':
+        keyboard = [
+            [InlineKeyboardButton("By Context", callback_data='context_By Context')],
+            [InlineKeyboardButton("Against Context", callback_data='context_Against Context')],
+            [InlineKeyboardButton("Neutral Context", callback_data='context_Neutral Context')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Context?', reply_markup=reply_markup)
+    
+    elif query.data == 'edit_testpoi':
+        keyboard = [
+            [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
+            [InlineKeyboardButton(">50@ or FullFill", callback_data='testpoi_>50@ or FullFill')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Test POI?', reply_markup=reply_markup)
+    
+    elif query.data == 'edit_delivery':
+        keyboard = [
+            [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
+            [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
+    
+    elif query.data == 'edit_pointa':
+        keyboard = [
+            [InlineKeyboardButton("Fractal Raid", callback_data='pointa_Fractal Raid')],
+            [InlineKeyboardButton("RB", callback_data='pointa_RB')],
+            [InlineKeyboardButton("FVG", callback_data='pointa_FVG')],
+            [InlineKeyboardButton("SNR", callback_data='pointa_SNR')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Point A?', reply_markup=reply_markup)
+    
+    elif query.data == 'edit_trigger':
+        user_data[auth_key]['Trigger'] = []  # Очищаємо попередні вибори
+        keyboard = [
+            [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
+            [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
+            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')],
+            [InlineKeyboardButton("Готово", callback_data='trigger_done')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger'])})", reply_markup=reply_markup)
+    
+    elif query.data == 'edit_vc':
+        user_data[auth_key]['VC'] = []  # Очищаємо попередні вибори
+        keyboard = [
+            [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
+            [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
+            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
+            [InlineKeyboardButton("Готово", callback_data='vc_done')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC'])})", reply_markup=reply_markup)
+    
+    elif query.data == 'edit_entrymodel':
+        keyboard = [
+            [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
+            [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
+            [InlineKeyboardButton("SNR", callback_data='entrymodel_SNR')],
+            [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
+    
+    elif query.data == 'edit_entrytf':
+        keyboard = [
+            [InlineKeyboardButton("3m", callback_data='entrytf_3m')],
+            [InlineKeyboardButton("5m", callback_data='entrytf_5m')],
+            [InlineKeyboardButton("15m", callback_data='entrytf_15m')],
+            [InlineKeyboardButton("1H/30m", callback_data='entrytf_1H/30m')],
+            [InlineKeyboardButton("4H", callback_data='entrytf_4H')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Entry TF?', reply_markup=reply_markup)
+    
+    elif query.data == 'edit_pointb':
+        keyboard = [
+            [InlineKeyboardButton("Fractal Swing", callback_data='pointb_Fractal Swing')],
+            [InlineKeyboardButton("FVG", callback_data='pointb_FVG')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Point B?', reply_markup=reply_markup)
+    
+    elif query.data == 'edit_slposition':
+        keyboard = [
+            [InlineKeyboardButton("LTF/Lunch Manipulation", callback_data='slposition_LTF/Lunch Manipulation')],
+            [InlineKeyboardButton("1H/30m Raid", callback_data='slposition_1H/30m Raid')],
+            [InlineKeyboardButton("4H Raid", callback_data='slposition_4H Raid')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('SL Position?', reply_markup=reply_markup)
+    
+    elif query.data == 'edit_rr':
+        user_data[auth_key]['waiting_for_rr'] = True
         await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):')
 
 # Головна функція для запуску бота
