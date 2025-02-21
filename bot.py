@@ -73,7 +73,7 @@ async def start(update, context):
     user_id = str(update.message.from_user.id)
     print(f"Тип user_id: {type(user_id)}, значення: {user_id}")  # Додаємо дебаг
     if user_id not in user_data or 'notion_token' not in user_data[user_id]:
-        auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={str(user_id)}"
+        auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={str(user_id) + 'user'}"
         print(f"Сформований auth_url: {auth_url}")  # Додаємо дебаг
         keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
