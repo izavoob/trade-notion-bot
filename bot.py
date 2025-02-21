@@ -290,7 +290,7 @@ async def button(update, context):
         logger.info(f"Updated Context for user {user_id}: {user_data[auth_key]['Context']}")
         keyboard = [
             [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
-            [InlineKeyboardButton(">50@ or FullFill", callback_data='testpoi_>50@ or FullFill')],
+            [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')],
             [InlineKeyboardButton("Назад", callback_data='back_to_session')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -484,7 +484,7 @@ async def button(update, context):
     elif query.data == 'back_to_testpoi':
         keyboard = [
             [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
-            [InlineKeyboardButton(">50@ or FullFill", callback_data='testpoi_>50@ or FullFill')],
+            [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')],
             [InlineKeyboardButton("Назад", callback_data='back_to_context')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -644,7 +644,7 @@ async def button(update, context):
     elif query.data == 'edit_testpoi':
         keyboard = [
             [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
-            [InlineKeyboardButton(">50@ or FullFill", callback_data='testpoi_>50@ or FullFill')]
+            [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Test POI?', reply_markup=reply_markup)
