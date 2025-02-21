@@ -160,9 +160,6 @@ async def start(update, context):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
 
-# Решта коду (handle_text, create_notion_page, button, main) залишається без змін
-# ... (вставте решту вашого коду сюди)
-
 # Обробка текстового вводу
 async def handle_text(update, context):
     global user_data
@@ -270,6 +267,8 @@ def create_notion_page(user_id):
     response = requests.post(url, json=payload, headers=headers)
     if response.status_code != 200:
         print(f"Помилка Notion API для користувача {user_id}: {response.status_code} - {response.text}")
+    else:
+        print(f"Сторінка успішно додана для користувача {user_id}")
 
 # Обробка кнопок
 async def button(update, context):
@@ -417,7 +416,7 @@ async def button(update, context):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Point B?', reply_markup=reply_markup)
     
-   elif query.data.startswith('pointb_'):
+    elif query.data.startswith('pointb_'):
         user_data[auth_key]['Point B'] = query.data.split('_')[1]
         print(f"Оновлено Point B: {user_data[auth_key]}")
         keyboard = [
@@ -432,7 +431,8 @@ async def button(update, context):
         user_data[auth_key]['SL Position'] = query.data.split('_')[1]
         user_data[auth_key]['waiting_for_rr'] = True
         print(f"Оновлено SL Position і waiting_for_rr: {user_data[auth_key]}")
-        await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):')  
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):')
+
 # Головна функція для запуску бота
 def main():
     application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(30).write_timeout(30).build()
