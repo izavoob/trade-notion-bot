@@ -88,7 +88,6 @@ async def start(update, context):
         await update.message.reply_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
 
 # Обробка текстового вводу
-# Обробка текстового вводу
 async def handle_text(update, context):
     global user_data
     user_id = str(update.message.from_user.id)
@@ -246,27 +245,27 @@ async def button(update, context):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Context?', reply_markup=reply_markup)
     
-elif query.data.startswith('context_'):
-    user_data[auth_key]['Context'] = query.data.split('_')[1]
-    print(f"Оновлено Context: {user_data[auth_key]}")
-    keyboard = [
-        [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
-        [InlineKeyboardButton(">50@ or FullFill", callback_data='testpoi_>50@ or FullFill')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text('Test POI?', reply_markup=reply_markup)
-    print("Запит Test POI відправлено")  # Додатковий дебаг
-
-elif query.data.startswith('testpoi_'):
-    print(f"Отримано callback_data: {query.data}")  # Додатковий дебаг
-    user_data[auth_key]['Test POI'] = query.data.split('_')[1]
-    print(f"Оновлено Test POI: {user_data[auth_key]}")
-    keyboard = [
-        [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
-        [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
+    elif query.data.startswith('context_'):
+        user_data[auth_key]['Context'] = query.data.split('_')[1]
+        print(f"Оновлено Context: {user_data[auth_key]}")
+        keyboard = [
+            [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
+            [InlineKeyboardButton(">50@ or FullFill", callback_data='testpoi_>50@ or FullFill')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Test POI?', reply_markup=reply_markup)
+        print("Запит Test POI відправлено")  # Додатковий дебаг
+    
+    elif query.data.startswith('testpoi_'):
+        print(f"Отримано callback_data: {query.data}")  # Додатковий дебаг
+        user_data[auth_key]['Test POI'] = query.data.split('_')[1]
+        print(f"Оновлено Test POI: {user_data[auth_key]}")
+        keyboard = [
+            [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
+            [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
     
     elif query.data.startswith('delivery_'):
         user_data[auth_key]['Delivery to POI'] = query.data.split('_')[1]
