@@ -130,7 +130,7 @@ async def handle_text(update, context):
             rr = float(rr_input)
             user_data[auth_key]['RR'] = rr
             required_keys = ['Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
-                            'Trigger', 'VC', 'Entry model', 'Entry TF', 'Point B', 'SL Position', 'RR']
+                            'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']
             missing_keys = [key for key in required_keys if key not in user_data[auth_key]]
             if missing_keys:
                 logger.error(f"Missing required keys for user {user_id}: {missing_keys}")
@@ -153,7 +153,7 @@ async def handle_text(update, context):
                     del user_data[auth_key]['Point A']
                     del user_data[auth_key]['Trigger']
                     del user_data[auth_key]['VC']
-                    del user_data[auth_key]['Entry model']
+                    del user_data[auth_key]['Entry Model']
                     del user_data[auth_key]['Entry TF']
                     del user_data[auth_key]['Point B']
                     del user_data[auth_key]['SL Position']
@@ -182,7 +182,7 @@ def format_summary(data):
         f"Point A: {data['Point A']}\n"
         f"Trigger: {data['Trigger']}\n"
         f"VC: {data['VC']}\n"
-        f"Entry model: {data['Entry model']}\n"
+        f"Entry Model: {data['Entry Model']}\n"
         f"Entry TF: {data['Entry TF']}\n"
         f"Point B: {data['Point B']}\n"
         f"SL Position: {data['SL Position']}\n"
@@ -212,7 +212,7 @@ def create_notion_page(user_id):
             'Point A': {'select': {'name': user_data[user_id]['Point A']}},
             'Trigger': {'multi_select': [{'name': user_data[user_id]['Trigger']}]},
             'VC': {'multi_select': [{'name': user_data[user_id]['VC']}]},
-            'Entry model': {'select': {'name': user_data[user_id]['Entry model']}},
+            'Entry Model': {'select': {'name': user_data[user_id]['Entry Model']}},
             'Entry TF': {'select': {'name': user_data[user_id]['Entry TF']}},
             'Point B': {'select': {'name': user_data[user_id]['Point B']}},
             'SL Position': {'select': {'name': user_data[user_id]['SL Position']}},
@@ -357,11 +357,11 @@ async def button(update, context):
             [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Entry model?', reply_markup=reply_markup)
+        await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
     
     elif query.data.startswith('entrymodel_'):
-        user_data[auth_key]['Entry model'] = query.data.split('_')[1]
-        logger.info(f"Updated Entry model for user {user_id}: {user_data[auth_key]['Entry model']}")
+        user_data[auth_key]['Entry Model'] = query.data.split('_')[1]
+        logger.info(f"Updated Entry Model for user {user_id}: {user_data[auth_key]['Entry Model']}")
         keyboard = [
             [InlineKeyboardButton("3m", callback_data='entrytf_3m')],
             [InlineKeyboardButton("5m", callback_data='entrytf_5m')],
