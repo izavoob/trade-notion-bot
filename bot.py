@@ -14,9 +14,9 @@ HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 
 user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
 
-# Функція для отримання батьківської сторінки бази "Classification" і пошуку "Execution"
-def fetch_execution_databases(database_id, notion_token):
-    url = f"https://api.notion.com/v1/databases/{database_id}"
+# Функція для отримання баз із батьківської сторінки "A-B-C position Final Bot"
+def fetch_databases_from_parent_page(page_id, notion_token):
+    url = f"https://api.notion.com/v1/blocks/{page_id}/children"
     headers = {
         "Authorization": f"Bearer {notion_token}",
         "Content-Type": "application/json",
@@ -24,35 +24,34 @@ def fetch_execution_databases(database_id, notion_token):
     }
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
-        print(f"Помилка отримання бази Classification: {response.status_code} - {response.text}")
-        return None
-    
-    data = response.json()
-    print(f"Інформація про базу Classification: {data}")
-    parent = data.get("parent", {})
-    if parent.get("type") != "page_id":
-        print("База Classification не знаходиться на сторінці.")
-        return None
-    
-    parent_page_id = parent["page_id"]
-    print(f"Знайдено батьківську сторінку з ID: {parent_page_id}")
-
-    url = f"https://api.notion.com/v1/blocks/{parent_page_id}/children"
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        print(f"Помилка отримання дочірніх елементів сторінки: {response.status_code} - {response.text}")
-        return None
+        print(f"Помилка отримання дочірніх елементів сторінки {page_id}: {response.status_code} - {response.text}")
+        return None, None
     
     data = response.json()
     print(f"Дочірні елементи батьківської сторінки: {data}")
+    
+    classification_db_id = None
+    execution_page_id = None
+    
+    # Шукаємо "Classification" і "Execution"
     for block in data["results"]:
-        if block["type"] == "child_page" and "Execution" in block["child_page"]["title"]:
+        if block["type"] == "child_database" and "Classification" in block["child_database"]["title"]:
+            classification_db_id = block["id"]
+            print(f"Знайдено базу Classification з ID: {classification_db_id}")
+        elif block["type"] == "child_page" and "Execution" in block["child_page"]["title"]:
             execution_page_id = block["id"]
             print(f"Знайдено сторінку Execution з ID: {execution_page_id}")
-            return fetch_databases_from_execution(execution_page_id, notion_token)
     
-    print("Сторінку 'Execution' не знайдено на батьківській сторінці.")
-    return None
+    if not classification_db_id:
+        print("Базу 'Classification' не знайдено на батьківській сторінці.")
+        return None, None
+    if not execution_page_id:
+        print("Сторінку 'Execution' не знайдено на батьківській сторінці.")
+        return None, None
+    
+    # Отримуємо бази з "Execution"
+    relation_ids = fetch_databases_from_execution(execution_page_id, notion_token)
+    return classification_db_id, relation_ids
 
 def fetch_databases_from_execution(page_id, notion_token):
     url = f"https://api.notion.com/v1/blocks/{page_id}/children"
@@ -134,18 +133,19 @@ async def start(update, context):
         instructions = (
             "Щоб використовувати бота:\n"
             "1. Скопіюй сторінку за посиланням: https://www.notion.so/A-B-C-position-Final-Bot-1a084b079a8280d29d5ecc9316e02c5d\n"
-            "2. Авторизуйся нижче і введи ID бази 'Classification'."
+            "2. Авторизуйся нижче і введи ID батьківської сторінки 'A-B-C position Final Bot' (32 символи з URL)."
         )
         auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
         print(f"Сформований auth_url: {auth_url}")
         keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(instructions, reply_markup=reply_markup)
-    elif 'database_id' not in user_data[auth_key]:
-        await update.message.reply_text('Введи ID бази "Classification" (32 символи з URL):')
-    elif 'relation_ids' not in user_data[auth_key]:
-        relation_ids = fetch_execution_databases(user_data[auth_key]['database_id'], user_data[auth_key]['notion_token'])
-        if relation_ids:
+    elif 'parent_page_id' not in user_data[auth_key]:
+        await update.message.reply_text('Введи ID батьківської сторінки "A-B-C position Final Bot" (32 символи з URL):')
+    elif 'classification_db_id' not in user_data[auth_key] or 'relation_ids' not in user_data[auth_key]:
+        classification_db_id, relation_ids = fetch_databases_from_parent_page(user_data[auth_key]['parent_page_id'], user_data[auth_key]['notion_token'])
+        if classification_db_id and relation_ids:
+            user_data[auth_key]['classification_db_id'] = classification_db_id
             user_data[auth_key]['relation_ids'] = relation_ids
             conn = heroku3.from_key(HEROKU_API_KEY)
             heroku_app = conn.apps()['tradenotionbot-lg2']
@@ -154,7 +154,7 @@ async def start(update, context):
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
         else:
-            await update.message.reply_text('Помилка: не вдалося знайти сторінку "Execution" поруч із базою "Classification". Перевір правильність ID або структуру сторінки.')
+            await update.message.reply_text('Помилка: не вдалося знайти базу "Classification" або сторінку "Execution". Перевір правильність ID сторінки.')
     else:
         keyboard = [[InlineKeyboardButton("Додати трейд", callback_data='add_trade')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -167,16 +167,16 @@ async def handle_text(update, context):
     auth_key = f"{user_id}user"
     if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
         await update.message.reply_text("Спочатку авторизуйся через /start.")
-    elif 'database_id' not in user_data[auth_key]:
+    elif 'parent_page_id' not in user_data[auth_key]:
         text = update.message.text
         if len(text) == 32:
-            user_data[auth_key]['database_id'] = text
+            user_data[auth_key]['parent_page_id'] = text
             conn = heroku3.from_key(HEROKU_API_KEY)
             heroku_app = conn.apps()['tradenotionbot-lg2']
             heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-            await update.message.reply_text('ID бази збережено! Напиши /start.')
+            await update.message.reply_text('ID сторінки збережено! Напиши /start.')
         else:
-            await update.message.reply_text('Неправильний ID. Введи 32 символи з URL бази "Classification".')
+            await update.message.reply_text('Неправильний ID. Введи 32 символи з URL сторінки "A-B-C position Final Bot".')
     elif 'waiting_for_rr' in user_data[auth_key]:
         rr_input = update.message.text
         try:
@@ -188,6 +188,7 @@ async def handle_text(update, context):
             if missing_keys:
                 await update.message.reply_text(f"Помилка: відсутні дані для {', '.join(missing_keys)}. Почни заново через 'Додати трейд'.")
             else:
+                print(f"Спроба додати трейд для користувача {auth_key}: {user_data[auth_key]}")
                 create_notion_page(auth_key)
                 await update.message.reply_text(format_summary(user_data[auth_key]) + "\nТрейд успішно додано!")
                 conn = heroku3.from_key(HEROKU_API_KEY)
@@ -243,32 +244,34 @@ def create_notion_page(user_id):
         'Notion-Version': "2022-06-28"
     }
     relation_ids = user_data[user_id]['relation_ids']
+    print(f"relation_ids перед створенням сторінки: {relation_ids}")
     payload = {
-        'parent': {'database_id': user_data[user_id]['database_id']},
+        'parent': {'database_id': user_data[user_id]['classification_db_id']},
         'properties': {
             'Pair': {'select': {'name': user_data[user_id]['Pair']}},
             'Session': {'select': {'name': user_data[user_id]['Session']}},
-            'Context': {'relation': [{'id': relation_ids['Context'].get(user_data[user_id]['Context'], '')}] if 'Context' in relation_ids else {}},
-            'Test POI': {'relation': [{'id': relation_ids['Test POI'].get(user_data[user_id]['Test POI'], '')}] if 'Test POI' in relation_ids else {}},
+            'Context': {'relation': [{'id': relation_ids['Context'].get(user_data[user_id]['Context'], '')}] if 'Context' in relation_ids and relation_ids['Context'] else {}},
+            'Test POI': {'relation': [{'id': relation_ids['Test POI'].get(user_data[user_id]['Test POI'], '')}] if 'Test POI' in relation_ids and relation_ids['Test POI'] else {}},
             'Delivery to POI': {'select': {'name': user_data[user_id]['Delivery to POI']}},
-            'Point A': {'relation': [{'id': relation_ids['Point A'].get(user_data[user_id]['Point A'], '')}] if 'Point A' in relation_ids else {}},
-            'Trigger': {'relation': [{'id': relation_ids['Trigger'].get(user_data[user_id]['Trigger'], '')}] if 'Trigger' in relation_ids else {}},
-            'VC': {'relation': [{'id': relation_ids['VC'].get(user_data[user_id]['VC'], '')}] if 'VC' in relation_ids else {}},
-            'Entry Model': {'relation': [{'id': relation_ids['Entry model'].get(user_data[user_id]['Entry model'], '')}] if 'Entry model' in relation_ids else {}},
-            'Entry TF': {'relation': [{'id': relation_ids['Entry TF'].get(user_data[user_id]['Entry TF'], '')}] if 'Entry TF' in relation_ids else {}},
-            'Point B': {'relation': [{'id': relation_ids['Point B'].get(user_data[user_id]['Point B'], '')}] if 'Point B' in relation_ids else {}},
-            'SL Position': {'relation': [{'id': relation_ids['SL Position'].get(user_data[user_id]['SL Position'], '')}] if 'SL Position' in relation_ids else {}},
+            'Point A': {'relation': [{'id': relation_ids['Point A'].get(user_data[user_id]['Point A'], '')}] if 'Point A' in relation_ids and relation_ids['Point A'] else {}},
+            'Trigger': {'relation': [{'id': relation_ids['Trigger'].get(user_data[user_id]['Trigger'], '')}] if 'Trigger' in relation_ids and relation_ids['Trigger'] else {}},
+            'VC': {'relation': [{'id': relation_ids['VC'].get(user_data[user_id]['VC'], '')}] if 'VC' in relation_ids and relation_ids['VC'] else {}},
+            'Entry Model': {'relation': [{'id': relation_ids['Entry model'].get(user_data[user_id]['Entry model'], '')}] if 'Entry model' in relation_ids and relation_ids['Entry model'] else {}},
+            'Entry TF': {'relation': [{'id': relation_ids['Entry TF'].get(user_data[user_id]['Entry TF'], '')}] if 'Entry TF' in relation_ids and relation_ids['Entry TF'] else {}},
+            'Point B': {'relation': [{'id': relation_ids['Point B'].get(user_data[user_id]['Point B'], '')}] if 'Point B' in relation_ids and relation_ids['Point B'] else {}},
+            'SL Position': {'relation': [{'id': relation_ids['SL Position'].get(user_data[user_id]['SL Position'], '')}] if 'SL Position' in relation_ids and relation_ids['SL Position'] else {}},
             'RR': {'number': user_data[user_id]['RR']}
         }
     }
+    print(f"Payload для Notion API: {json.dumps(payload, indent=2)}")
     missing_relations = [key for key in relation_ids if not relation_ids[key]]
     if missing_relations:
-        print(f"Помилка: відсутні записи для {missing_relations} у relation_ids: {relation_ids}")
+        print(f"Попередження: відсутні записи для {missing_relations} у relation_ids: {relation_ids}")
     response = requests.post(url, json=payload, headers=headers)
     if response.status_code != 200:
         print(f"Помилка Notion API для користувача {user_id}: {response.status_code} - {response.text}")
     else:
-        print(f"Сторінка успішно додана для користувача {user_id}")
+        print(f"Сторінка успішно додана для користувача {user_id}: {response.json()}")
 
 # Обробка кнопок
 async def button(update, context):
@@ -279,8 +282,8 @@ async def button(update, context):
     if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
         await update.callback_query.edit_message_text("Спочатку авторизуйся через /start.")
         return
-    if 'database_id' not in user_data[auth_key]:
-        await update.callback_query.edit_message_text("Спочатку введи ID бази через /start.")
+    if 'parent_page_id' not in user_data[auth_key]:
+        await update.callback_query.edit_message_text("Спочатку введи ID сторінки через /start.")
         return
     
     query = update.callback_query
