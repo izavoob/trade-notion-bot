@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import heroku3
 from flask import Flask, request
 
 app = Flask(__name__)
@@ -8,6 +9,7 @@ app = Flask(__name__)
 CLIENT_ID = os.getenv('NOTION_CLIENT_ID')
 CLIENT_SECRET = os.getenv('NOTION_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('REDIRECT_URI')
+HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')  # Додай свій API ключ Heroku
 
 # Завантажуємо user_data із змінної Heroku
 user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
@@ -20,7 +22,7 @@ def hello():
 def oauth_callback():
     global user_data
     code = request.args.get('code')
-    user_id = request.args.get('state')  # Отримуємо state із суфіксом 'user'
+    user_id = request.args.get('state')
     print(f"Отримано code: {code}, user_id: {user_id}")
     if code and user_id:
         token_response = requests.post(
@@ -30,8 +32,11 @@ def oauth_callback():
         ).json()
         print(f"Notion відповідь: {token_response}")
         if 'access_token' in token_response:
-            user_data[user_id] = {'notion_token': token_response['access_token']}  # Зберігаємо з суфіксом
-            os.system(f"heroku config:set HEROKU_USER_DATA='{json.dumps(user_data)}' -a tradenotionbot-lg2")
+            user_data[user_id] = {'notion_token': token_response['access_token']}
+            # Оновлюємо HEROKU_USER_DATA через Heroku API
+            conn = heroku3.from_key(HEROKU_API_KEY)
+            heroku_app = conn.apps()['tradenotionbot-lg2']
+            heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
             print(f"Збережено user_data: {user_data}")
             return "Авторизація успішна! Повернись у Telegram і напиши /start."
     return "Помилка авторизації."
