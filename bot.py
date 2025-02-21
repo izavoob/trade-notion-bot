@@ -10,12 +10,8 @@ CLIENT_ID = os.getenv('NOTION_CLIENT_ID')
 CLIENT_SECRET = os.getenv('NOTION_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('REDIRECT_URI')
 
-# Зберігання даних користувачів
-USER_DATA_FILE = 'user_data.json'
-user_data = {}
-if os.path.exists(USER_DATA_FILE):
-    with open(USER_DATA_FILE, 'r') as f:
-        user_data = json.load(f)
+# Завантажуємо user_data із змінної Heroku
+user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
 
 # Мапінг значень для "Relation"
 RELATION_IDS = {
@@ -70,56 +66,67 @@ RELATION_IDS = {
 
 # Початок роботи бота
 async def start(update, context):
+    global user_data
     user_id = str(update.message.from_user.id)
+    # Оновлюємо user_data перед перевіркою
+    user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
     print(f"Перевірка user_data перед /start: {user_data}")
-    print(f"Тип user_id: {type(user_id)}, значення: {user_id}")  # Додаємо дебаг
-    if user_id not in user_data or 'notion_token' not in user_data[user_id]:
-        auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={str(user_id) + 'user'}"
-        print(f"Сформований auth_url: {auth_url}")  # Додаємо дебаг
+    # Перевіряємо user_id без суфіксу 'user', бо app.py зберігає його з суфіксом
+    auth_key = f"{user_id}user"
+    if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
+        auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}"
+        print(f"Сформований auth_url: {auth_url}")
         keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text('Спочатку авторизуйся в Notion:', reply_markup=reply_markup)
-    elif 'database_id' not in user_data[user_id]:
+    elif 'database_id' not in user_data[auth_key]:
         await update.message.reply_text('Введи ID бази "Classification" (32 символи з URL):')
     else:
         keyboard = [[InlineKeyboardButton("Додати трейд", callback_data='add_trade')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
+
 # Обробка текстового вводу
 async def handle_text(update, context):
+    global user_data
     user_id = str(update.message.from_user.id)
-    if user_id not in user_data or 'notion_token' not in user_data[user_id]:
+    auth_key = f"{user_id}user"
+    # Оновлюємо user_data перед перевіркою
+    user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
+    if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
         await update.message.reply_text("Спочатку авторизуйся через /start.")
-    elif 'database_id' not in user_data[user_id]:
+    elif 'database_id' not in user_data[auth_key]:
         text = update.message.text
         if len(text) == 32:
-            user_data[user_id]['database_id'] = text
-            with open(USER_DATA_FILE, 'w') as f:
-                json.dump(user_data, f)
+            user_data[auth_key]['database_id'] = text
+            # Зберігаємо в HEROKU_USER_DATA
+            os.system(f"heroku config:set HEROKU_USER_DATA='{json.dumps(user_data)}' -a tradenotionbot-lg2")
             await update.message.reply_text('ID бази збережено! Напиши /start.')
         else:
             await update.message.reply_text('Неправильний ID. Введи 32 символи з URL бази "Classification".')
-    elif 'waiting_for_rr' in user_data[user_id]:
+    elif 'waiting_for_rr' in user_data[auth_key]:
         rr_input = update.message.text
         try:
             rr = float(rr_input)
-            user_data[user_id]['RR'] = rr
-            create_notion_page(user_id)
-            await update.message.reply_text(format_summary(user_data[user_id]))
-            del user_data[user_id]['waiting_for_rr']
-            del user_data[user_id]['Pair']
-            del user_data[user_id]['Session']
-            del user_data[user_id]['Context']
-            del user_data[user_id]['Test POI']
-            del user_data[user_id]['Delivery to POI']
-            del user_data[user_id]['Point A']
-            del user_data[user_id]['Trigger']
-            del user_data[user_id]['VC']
-            del user_data[user_id]['Entry model']
-            del user_data[user_id]['Entry TF']
-            del user_data[user_id]['Point B']
-            del user_data[user_id]['SL Position']
-            del user_data[user_id]['RR']
+            user_data[auth_key]['RR'] = rr
+            create_notion_page(auth_key)
+            await update.message.reply_text(format_summary(user_data[auth_key]))
+            del user_data[auth_key]['waiting_for_rr']
+            del user_data[auth_key]['Pair']
+            del user_data[auth_key]['Session']
+            del user_data[auth_key]['Context']
+            del user_data[auth_key]['Test POI']
+            del user_data[auth_key]['Delivery to POI']
+            del user_data[auth_key]['Point A']
+            del user_data[auth_key]['Trigger']
+            del user_data[auth_key]['VC']
+            del user_data[auth_key]['Entry model']
+            del user_data[auth_key]['Entry TF']
+            del user_data[auth_key]['Point B']
+            del user_data[auth_key]['SL Position']
+            del user_data[auth_key]['RR']
+            # Зберігаємо оновлення
+            os.system(f"heroku config:set HEROKU_USER_DATA='{json.dumps(user_data)}' -a tradenotionbot-lg2")
         except ValueError:
             await update.message.reply_text("Введи коректне число для RR (наприклад, 2.5):")
     else:
@@ -176,17 +183,21 @@ def create_notion_page(user_id):
 
 # Обробка кнопок
 async def button(update, context):
-    query = update.callback_query
-    await query.answer()
+    global user_data
+    user_id = str(update.message.from_user.id) if update.message else str(update.callback_query.from_user.id)
+    auth_key = f"{user_id}user"
+    # Оновлюємо user_data перед перевіркою
+    user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
     
-    user_id = str(query.from_user.id)
-    
-    if user_id not in user_data or 'notion_token' not in user_data[user_id]:
+    if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
         await query.edit_message_text("Спочатку авторизуйся через /start.")
         return
-    if 'database_id' not in user_data[user_id]:
+    if 'database_id' not in user_data[auth_key]:
         await query.edit_message_text("Спочатку введи ID бази через /start.")
         return
+    
+    query = update.callback_query
+    await query.answer()
     
     if query.data == 'add_trade':
         keyboard = [
@@ -200,7 +211,7 @@ async def button(update, context):
         await query.edit_message_text('Pair?', reply_markup=reply_markup)
     
     elif query.data.startswith('pair_'):
-        user_data[user_id]['Pair'] = query.data.split('_')[1]
+        user_data[auth_key]['Pair'] = query.data.split('_')[1]
         keyboard = [
             [InlineKeyboardButton("Asia", callback_data='session_Asia')],
             [InlineKeyboardButton("Frankfurt", callback_data='session_Frankfurt')],
@@ -212,7 +223,7 @@ async def button(update, context):
         await query.edit_message_text('Session?', reply_markup=reply_markup)
     
     elif query.data.startswith('session_'):
-        user_data[user_id]['Session'] = query.data.split('_')[1]
+        user_data[auth_key]['Session'] = query.data.split('_')[1]
         keyboard = [
             [InlineKeyboardButton("By Context", callback_data='context_By Context')],
             [InlineKeyboardButton("Against Context", callback_data='context_Against Context')],
@@ -222,7 +233,7 @@ async def button(update, context):
         await query.edit_message_text('Context?', reply_markup=reply_markup)
     
     elif query.data.startswith('context_'):
-        user_data[user_id]['Context'] = query.data.split('_')[1]
+        user_data[auth_key]['Context'] = query.data.split('_')[1]
         keyboard = [
             [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
             [InlineKeyboardButton(">50@ or FullFill", callback_data='testpoi_>50@ or FullFill')]
@@ -231,7 +242,7 @@ async def button(update, context):
         await query.edit_message_text('Test POI?', reply_markup=reply_markup)
     
     elif query.data.startswith('testpoi_'):
-        user_data[user_id]['Test POI'] = query.data.split('_')[1]
+        user_data[auth_key]['Test POI'] = query.data.split('_')[1]
         keyboard = [
             [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
             [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')]
@@ -240,7 +251,7 @@ async def button(update, context):
         await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
     
     elif query.data.startswith('delivery_'):
-        user_data[user_id]['Delivery to POI'] = query.data.split('_')[1]
+        user_data[auth_key]['Delivery to POI'] = query.data.split('_')[1]
         keyboard = [
             [InlineKeyboardButton("Fractal Raid", callback_data='pointa_Fractal Raid')],
             [InlineKeyboardButton("RB", callback_data='pointa_RB')],
@@ -251,7 +262,7 @@ async def button(update, context):
         await query.edit_message_text('Point A?', reply_markup=reply_markup)
     
     elif query.data.startswith('pointa_'):
-        user_data[user_id]['Point A'] = query.data.split('_')[1]
+        user_data[auth_key]['Point A'] = query.data.split('_')[1]
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
@@ -261,7 +272,7 @@ async def button(update, context):
         await query.edit_message_text('Trigger?', reply_markup=reply_markup)
     
     elif query.data.startswith('trigger_'):
-        user_data[user_id]['Trigger'] = query.data.split('_')[1]
+        user_data[auth_key]['Trigger'] = query.data.split('_')[1]
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
@@ -271,7 +282,7 @@ async def button(update, context):
         await query.edit_message_text('VC?', reply_markup=reply_markup)
     
     elif query.data.startswith('vc_'):
-        user_data[user_id]['VC'] = query.data.split('_')[1]
+        user_data[auth_key]['VC'] = query.data.split('_')[1]
         keyboard = [
             [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
             [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
@@ -282,7 +293,7 @@ async def button(update, context):
         await query.edit_message_text('Entry model?', reply_markup=reply_markup)
     
     elif query.data.startswith('entrymodel_'):
-        user_data[user_id]['Entry model'] = query.data.split('_')[1]
+        user_data[auth_key]['Entry model'] = query.data.split('_')[1]
         keyboard = [
             [InlineKeyboardButton("3m", callback_data='entrytf_3m')],
             [InlineKeyboardButton("5m", callback_data='entrytf_5m')],
@@ -294,7 +305,7 @@ async def button(update, context):
         await query.edit_message_text('Entry TF?', reply_markup=reply_markup)
     
     elif query.data.startswith('entrytf_'):
-        user_data[user_id]['Entry TF'] = query.data.split('_')[1]
+        user_data[auth_key]['Entry TF'] = query.data.split('_')[1]
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='pointb_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='pointb_FVG')]
@@ -303,7 +314,7 @@ async def button(update, context):
         await query.edit_message_text('Point B?', reply_markup=reply_markup)
     
     elif query.data.startswith('pointb_'):
-        user_data[user_id]['Point B'] = query.data.split('_')[1]
+        user_data[auth_key]['Point B'] = query.data.split('_')[1]
         keyboard = [
             [InlineKeyboardButton("LTF/Lunch Manipulation", callback_data='slposition_LTF/Lunch Manipulation')],
             [InlineKeyboardButton("1H/30m Raid", callback_data='slposition_1H/30m Raid')],
@@ -313,9 +324,11 @@ async def button(update, context):
         await query.edit_message_text('SL Position?', reply_markup=reply_markup)
     
     elif query.data.startswith('slposition_'):
-        user_data[user_id]['SL Position'] = query.data.split('_')[1]
-        user_data[user_id]['waiting_for_rr'] = True
+        user_data[auth_key]['SL Position'] = query.data.split('_')[1]
+        user_data[auth_key]['waiting_for_rr'] = True
         await query.edit_message_text('Введи RR вручну (наприклад, 2.5):')
+        # Зберігаємо оновлення
+        os.system(f"heroku config:set HEROKU_USER_DATA='{json.dumps(user_data)}' -a tradenotionbot-lg2")
 
 # Головна функція для запуску бота
 def main():
