@@ -71,10 +71,10 @@ async def start(update, context):
     # Оновлюємо user_data перед перевіркою
     user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
     print(f"Перевірка user_data перед /start: {user_data}")
-    # Перевіряємо user_id без суфіксу 'user', бо app.py зберігає його з суфіксом
-    auth_key = f"{user_id}user"
+    auth_key = f"{user_id}user"  # Ключ із суфіксом для узгодженості з app.py
     if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
-        auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}"
+        # Додаємо суфікс до state, щоб гарантувати рядок
+        auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
         print(f"Сформований auth_url: {auth_url}")
         keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
         reply_markup = InlineKeyboardMarkup(keyboard)

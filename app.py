@@ -20,8 +20,7 @@ def hello():
 def oauth_callback():
     global user_data
     code = request.args.get('code')
-    user_id = request.args.get('state')
-    auth_key = f"{user_id}user"  # Додаємо суфікс для узгодженості
+    user_id = request.args.get('state')  # Отримуємо state із суфіксом 'user'
     print(f"Отримано code: {code}, user_id: {user_id}")
     if code and user_id:
         token_response = requests.post(
@@ -31,7 +30,7 @@ def oauth_callback():
         ).json()
         print(f"Notion відповідь: {token_response}")
         if 'access_token' in token_response:
-            user_data[auth_key] = {'notion_token': token_response['access_token']}
+            user_data[user_id] = {'notion_token': token_response['access_token']}  # Зберігаємо з суфіксом
             os.system(f"heroku config:set HEROKU_USER_DATA='{json.dumps(user_data)}' -a tradenotionbot-lg2")
             print(f"Збережено user_data: {user_data}")
             return "Авторизація успішна! Повернись у Telegram і напиши /start."
