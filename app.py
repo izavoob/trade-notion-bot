@@ -9,7 +9,7 @@ app = Flask(__name__)
 CLIENT_ID = os.getenv('NOTION_CLIENT_ID')
 CLIENT_SECRET = os.getenv('NOTION_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('REDIRECT_URI')
-HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')  # Додай свій API ключ Heroku
+HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 
 # Завантажуємо user_data із змінної Heroku
 user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))

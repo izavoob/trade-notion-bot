@@ -3,12 +3,14 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 import os
 import json
+import heroku3
 
 # Конфігурація через змінні середовища
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CLIENT_ID = os.getenv('NOTION_CLIENT_ID')
 CLIENT_SECRET = os.getenv('NOTION_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('REDIRECT_URI')
+HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 
 # Завантажуємо user_data із змінної Heroku
 user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
@@ -71,9 +73,8 @@ async def start(update, context):
     # Оновлюємо user_data перед перевіркою
     user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
     print(f"Перевірка user_data перед /start: {user_data}")
-    auth_key = f"{user_id}user"  # Ключ із суфіксом для узгодженості з app.py
+    auth_key = f"{user_id}user"
     if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
-        # Додаємо суфікс до state, щоб гарантувати рядок
         auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
         print(f"Сформований auth_url: {auth_url}")
         keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
@@ -99,8 +100,10 @@ async def handle_text(update, context):
         text = update.message.text
         if len(text) == 32:
             user_data[auth_key]['database_id'] = text
-            # Зберігаємо в HEROKU_USER_DATA
-            os.system(f"heroku config:set HEROKU_USER_DATA='{json.dumps(user_data)}' -a tradenotionbot-lg2")
+            # Зберігаємо в HEROKU_USER_DATA через Heroku API
+            conn = heroku3.from_key(HEROKU_API_KEY)
+            heroku_app = conn.apps()['tradenotionbot-lg2']
+            heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
             await update.message.reply_text('ID бази збережено! Напиши /start.')
         else:
             await update.message.reply_text('Неправильний ID. Введи 32 символи з URL бази "Classification".')
@@ -126,7 +129,9 @@ async def handle_text(update, context):
             del user_data[auth_key]['SL Position']
             del user_data[auth_key]['RR']
             # Зберігаємо оновлення
-            os.system(f"heroku config:set HEROKU_USER_DATA='{json.dumps(user_data)}' -a tradenotionbot-lg2")
+            conn = heroku3.from_key(HEROKU_API_KEY)
+            heroku_app = conn.apps()['tradenotionbot-lg2']
+            heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
         except ValueError:
             await update.message.reply_text("Введи коректне число для RR (наприклад, 2.5):")
     else:
@@ -190,10 +195,10 @@ async def button(update, context):
     user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
     
     if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
-        await query.edit_message_text("Спочатку авторизуйся через /start.")
+        await update.callback_query.edit_message_text("Спочатку авторизуйся через /start.")
         return
     if 'database_id' not in user_data[auth_key]:
-        await query.edit_message_text("Спочатку введи ID бази через /start.")
+        await update.callback_query.edit_message_text("Спочатку введи ID бази через /start.")
         return
     
     query = update.callback_query
@@ -327,8 +332,11 @@ async def button(update, context):
         user_data[auth_key]['SL Position'] = query.data.split('_')[1]
         user_data[auth_key]['waiting_for_rr'] = True
         await query.edit_message_text('Введи RR вручну (наприклад, 2.5):')
-        # Зберігаємо оновлення
-        os.system(f"heroku config:set HEROKU_USER_DATA='{json.dumps(user_data)}' -a tradenotionbot-lg2")
+    
+    # Зберігаємо після кожного оновлення
+    conn = heroku3.from_key(HEROKU_API_KEY)
+    heroku_app = conn.apps()['tradenotionbot-lg2']
+    heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
 
 # Головна функція для запуску бота
 def main():
