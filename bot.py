@@ -12,7 +12,7 @@ CLIENT_SECRET = os.getenv('NOTION_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('REDIRECT_URI')
 HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 
-# Завантажуємо user_data із змінної Heroku
+# Завантажуємо user_data один раз при старті бота
 user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
 
 # Мапінг значень для "Relation"
@@ -70,10 +70,8 @@ RELATION_IDS = {
 async def start(update, context):
     global user_data
     user_id = str(update.message.from_user.id)
-    # Оновлюємо user_data перед перевіркою
-    user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
-    print(f"Перевірка user_data перед /start: {user_data}")
     auth_key = f"{user_id}user"
+    print(f"Перевірка user_data перед /start: {user_data}")
     if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
         auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
         print(f"Сформований auth_url: {auth_url}")
@@ -92,14 +90,13 @@ async def handle_text(update, context):
     global user_data
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
-    # Оновлюємо user_data перед перевіркою
-    user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
     if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
         await update.message.reply_text("Спочатку авторизуйся через /start.")
     elif 'database_id' not in user_data[auth_key]:
         text = update.message.text
         if len(text) == 32:
             user_data[auth_key]['database_id'] = text
+            # Зберігаємо в Heroku після введення database_id
             conn = heroku3.from_key(HEROKU_API_KEY)
             heroku_app = conn.apps()['tradenotionbot-lg2']
             heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
@@ -120,6 +117,12 @@ async def handle_text(update, context):
             else:
                 create_notion_page(auth_key)
                 await update.message.reply_text(format_summary(user_data[auth_key]))
+                # Зберігаємо в Heroku лише після завершення трейду
+                conn = heroku3.from_key(HEROKU_API_KEY)
+                heroku_app = conn.apps()['tradenotionbot-lg2']
+                heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+                print(f"Збережено user_data в HEROKU_USER_DATA: {user_data}")
+                # Очищаємо дані після успішного трейду
                 del user_data[auth_key]['waiting_for_rr']
                 del user_data[auth_key]['Pair']
                 del user_data[auth_key]['Session']
@@ -134,10 +137,6 @@ async def handle_text(update, context):
                 del user_data[auth_key]['Point B']
                 del user_data[auth_key]['SL Position']
                 del user_data[auth_key]['RR']
-                # Зберігаємо оновлення
-                conn = heroku3.from_key(HEROKU_API_KEY)
-                heroku_app = conn.apps()['tradenotionbot-lg2']
-                heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
         except ValueError:
             await update.message.reply_text("Введи коректне число для RR (наприклад, 2.5):")
     else:
@@ -197,8 +196,6 @@ async def button(update, context):
     global user_data
     user_id = str(update.message.from_user.id) if update.message else str(update.callback_query.from_user.id)
     auth_key = f"{user_id}user"
-    # Оновлюємо user_data перед перевіркою
-    user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
     
     if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
         await update.callback_query.edit_message_text("Спочатку авторизуйся через /start.")
@@ -254,10 +251,10 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Test POI?', reply_markup=reply_markup)
-        print("Запит Test POI відправлено")  # Додатковий дебаг
+        print("Запит Test POI відправлено")
     
     elif query.data.startswith('testpoi_'):
-        print(f"Отримано callback_data: {query.data}")  # Додатковий дебаг
+        print(f"Отримано callback_data: {query.data}")
         user_data[auth_key]['Test POI'] = query.data.split('_')[1]
         print(f"Оновлено Test POI: {user_data[auth_key]}")
         keyboard = [
@@ -352,16 +349,10 @@ async def button(update, context):
         user_data[auth_key]['waiting_for_rr'] = True
         print(f"Оновлено SL Position і waiting_for_rr: {user_data[auth_key]}")
         await query.edit_message_text('Введи RR вручну (наприклад, 2.5):')
-    
-    # Зберігаємо після кожного оновлення
-    conn = heroku3.from_key(HEROKU_API_KEY)
-    heroku_app = conn.apps()['tradenotionbot-lg2']
-    heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-    print(f"Збережено user_data в HEROKU_USER_DATA: {user_data}")
 
 # Головна функція для запуску бота
 def main():
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(30).write_timeout(30).build()
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
