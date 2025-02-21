@@ -23,9 +23,9 @@ HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
 logger.info(f"Initial user_data loaded from HEROKU_USER_DATA: {json.dumps(user_data, indent=2)}")
 
-# Функція для отримання баз із батьківської сторінки
-def fetch_databases_from_parent_page(page_id, notion_token):
-    logger.debug(f"Starting fetch_databases_from_parent_page with page_id: {page_id}")
+# Функція для отримання ID бази "Classification" із батьківської сторінки
+def fetch_classification_db_id(page_id, notion_token):
+    logger.debug(f"Starting fetch_classification_db_id with page_id: {page_id}")
     url = f"https://api.notion.com/v1/blocks/{page_id}/children"
     headers = {
         "Authorization": f"Bearer {notion_token}",
@@ -38,117 +38,26 @@ def fetch_databases_from_parent_page(page_id, notion_token):
     
     if response.status_code != 200:
         logger.error(f"Failed to fetch children of page {page_id}: {response.status_code} - {response.text}")
-        return None, None
+        return None
     
     data = response.json()
     logger.info(f"Children of parent page {page_id}: {json.dumps(data, indent=2)}")
     
     classification_db_id = None
-    execution_page_id = None
     
     for block in data.get("results", []):
         logger.debug(f"Processing block: {json.dumps(block, indent=2)}")
         if block["type"] == "child_database" and "Classification" in block["child_database"]["title"]:
             classification_db_id = block["id"]
             logger.info(f"Found Classification database with ID: {classification_db_id}")
-        elif block["type"] == "child_page" and "Execution" in block["child_page"]["title"]:
-            execution_page_id = block["id"]
-            logger.info(f"Found Execution page with ID: {execution_page_id}")
+            break
     
     if not classification_db_id:
         logger.error("Classification database not found on parent page.")
-        return None, None
-    if not execution_page_id:
-        logger.error("Execution page not found on parent page.")
-        return None, None
-    
-    relation_ids = fetch_databases_from_execution(execution_page_id, notion_token)
-    logger.info(f"Returning classification_db_id: {classification_db_id}, relation_ids: {json.dumps(relation_ids, indent=2)}")
-    return classification_db_id, relation_ids
-
-def fetch_databases_from_execution(page_id, notion_token):
-    logger.debug(f"Starting fetch_databases_from_execution with page_id: {page_id}")
-    url = f"https://api.notion.com/v1/blocks/{page_id}/children"
-    headers = {
-        "Authorization": f"Bearer {notion_token}",
-        "Content-Type": "application/json",
-        "Notion-Version": "2022-06-28"
-    }
-    logger.debug(f"Notion API GET request to: {url} with headers: {headers}")
-    response = requests.get(url, headers=headers)
-    logger.debug(f"Notion API response: status={response.status_code}, content={response.text}")
-    
-    if response.status_code != 200:
-        logger.error(f"Failed to fetch children of Execution page {page_id}: {response.status_code} - {response.text}")
         return None
     
-    data = response.json()
-    logger.info(f"Children of Execution page {page_id}: {json.dumps(data, indent=2)}")
-    relation_ids = {
-        "Context": {}, "Test POI": {}, "Point A": {}, "Trigger": {}, "VC": {},
-        "Entry model": {}, "Entry TF": {}, "Point B": {}, "SL Position": {}
-    }
-    
-    for block in data.get("results", []):
-        logger.debug(f"Processing block: {json.dumps(block, indent=2)}")
-        if block["type"] == "child_database":
-            db_title = block["child_database"]["title"]
-            db_id = block["id"]
-            logger.info(f"Found database: {db_title} with ID: {db_id}")
-            if "Context" in db_title:
-                relation_ids["Context"] = fetch_relation_ids(db_id, notion_token)
-            elif "Test POI" in db_title:
-                relation_ids["Test POI"] = fetch_relation_ids(db_id, notion_token)
-            elif "Point A" in db_title:
-                relation_ids["Point A"] = fetch_relation_ids(db_id, notion_token)
-            elif "Trigger" in db_title:
-                relation_ids["Trigger"] = fetch_relation_ids(db_id, notion_token)
-            elif "VC" in db_title:
-                relation_ids["VC"] = fetch_relation_ids(db_id, notion_token)
-            elif "Entry Models" in db_title:
-                relation_ids["Entry model"] = fetch_relation_ids(db_id, notion_token)
-            elif "Entry TF" in db_title:
-                relation_ids["Entry TF"] = fetch_relation_ids(db_id, notion_token)
-            elif "Point B" in db_title:
-                relation_ids["Point B"] = fetch_relation_ids(db_id, notion_token)
-            elif "Stop Loss position" in db_title:
-                relation_ids["SL Position"] = fetch_relation_ids(db_id, notion_token)
-    
-    logger.info(f"Collected relation_ids from Execution: {json.dumps(relation_ids, indent=2)}")
-    return relation_ids
-
-def fetch_relation_ids(database_id, notion_token):
-    logger.debug(f"Starting fetch_relation_ids with database_id: {database_id}")
-    url = f"https://api.notion.com/v1/databases/{database_id}/query"
-    headers = {
-        "Authorization": f"Bearer {notion_token}",
-        "Content-Type": "application/json",
-        "Notion-Version": "2022-06-28"
-    }
-    logger.debug(f"Notion API POST request to: {url} with headers: {headers}")
-    response = requests.post(url, headers=headers)
-    logger.debug(f"Notion API response: status={response.status_code}, content={response.text}")
-    
-    if response.status_code != 200:
-        logger.error(f"Failed to query database {database_id}: {response.status_code} - {response.text}")
-        return {}
-    
-    data = response.json()
-    logger.info(f"Records from database {database_id}: {json.dumps(data, indent=2)}")
-    relation_ids = {}
-    
-    for result in data.get("results", []):
-        logger.debug(f"Processing record: {json.dumps(result, indent=2)}")
-        name_prop = result["properties"].get("Name", {})
-        if name_prop.get("title") and name_prop["title"]:
-            name = name_prop["title"][0]["text"]["content"]
-            page_id = result["id"]
-            relation_ids[name] = page_id
-            logger.info(f"Added relation: {name} -> {page_id}")
-        else:
-            logger.warning(f"Record in database {database_id} has no 'Name' property or it's empty: {json.dumps(result, indent=2)}")
-    
-    return relation_ids
+    logger.info(f"Returning classification_db_id: {classification_db_id}")
+    return classification_db_id
 
 # Початок роботи бота
 async def start(update, context):
@@ -171,22 +80,21 @@ async def start(update, context):
     elif 'parent_page_id' not in user_data[auth_key]:
         await update.message.reply_text('Введи ID батьківської сторінки "A-B-C position Final Bot" (32 символи з URL):')
         logger.info(f"Prompted user {user_id} to enter parent page ID.")
-    elif 'classification_db_id' not in user_data[auth_key] or 'relation_ids' not in user_data[auth_key]:
-        logger.info(f"Fetching Classification and relation IDs for user {user_id} with parent_page_id: {user_data[auth_key]['parent_page_id']}")
-        classification_db_id, relation_ids = fetch_databases_from_parent_page(user_data[auth_key]['parent_page_id'], user_data[auth_key]['notion_token'])
-        if classification_db_id and relation_ids:
+    elif 'classification_db_id' not in user_data[auth_key]:
+        logger.info(f"Fetching Classification DB ID for user {user_id} with parent_page_id: {user_data[auth_key]['parent_page_id']}")
+        classification_db_id = fetch_classification_db_id(user_data[auth_key]['parent_page_id'], user_data[auth_key]['notion_token'])
+        if classification_db_id:
             user_data[auth_key]['classification_db_id'] = classification_db_id
-            user_data[auth_key]['relation_ids'] = relation_ids
             conn = heroku3.from_key(HEROKU_API_KEY)
             heroku_app = conn.apps()['tradenotionbot-lg2']
             heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-            logger.info(f"Saved classification_db_id: {classification_db_id} and relation_ids to user_data for {auth_key}: {json.dumps(user_data[auth_key], indent=2)}")
+            logger.info(f"Saved classification_db_id: {classification_db_id} to user_data for {auth_key}: {json.dumps(user_data[auth_key], indent=2)}")
             keyboard = [[InlineKeyboardButton("Додати трейд", callback_data='add_trade')]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
         else:
-            logger.error(f"Failed to fetch Classification or relation IDs for user {user_id}")
-            await update.message.reply_text('Помилка: не вдалося знайти базу "Classification" або сторінку "Execution". Перевір правильність ID сторінки.')
+            logger.error(f"Failed to fetch Classification DB ID for user {user_id}")
+            await update.message.reply_text('Помилка: не вдалося знайти базу "Classification". Перевір правильність ID сторінки.')
     else:
         keyboard = [[InlineKeyboardButton("Додати трейд", callback_data='add_trade')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -292,33 +200,27 @@ def create_notion_page(user_id):
         'Content-Type': 'application/json',
         'Notion-Version': "2022-06-28"
     }
-    relation_ids = user_data[user_id]['relation_ids']
-    logger.info(f"relation_ids for user {user_id}: {json.dumps(relation_ids, indent=2)}")
     
     payload = {
         'parent': {'database_id': user_data[user_id]['classification_db_id']},
         'properties': {
             'Pair': {'select': {'name': user_data[user_id]['Pair']}},
             'Session': {'select': {'name': user_data[user_id]['Session']}},
+            'Context': {'select': {'name': user_data[user_id]['Context']}},
+            'Test POI': {'select': {'name': user_data[user_id]['Test POI']}},
             'Delivery to POI': {'select': {'name': user_data[user_id]['Delivery to POI']}},
+            'Point A': {'select': {'name': user_data[user_id]['Point A']}},
+            'Trigger': {'multi_select': [{'name': user_data[user_id]['Trigger']}]},
+            'VC': {'multi_select': [{'name': user_data[user_id]['VC']}]},
+            'Entry model': {'select': {'name': user_data[user_id]['Entry model']}},
+            'Entry TF': {'select': {'name': user_data[user_id]['Entry TF']}},
+            'Point B': {'select': {'name': user_data[user_id]['Point B']}},
+            'SL Position': {'select': {'name': user_data[user_id]['SL Position']}},
             'RR': {'number': user_data[user_id]['RR']}
         }
     }
     
-    # Додаємо поля типу relation лише якщо є відповідний ID
-    for prop in ['Context', 'Test POI', 'Point A', 'Trigger', 'VC', 'Entry model', 'Entry TF', 'Point B', 'SL Position']:
-        value = user_data[user_id].get(prop)
-        if value and prop in relation_ids and relation_ids[prop].get(value):
-            payload['properties'][prop] = {'relation': [{'id': relation_ids[prop][value]}]}
-            logger.debug(f"Added relation for {prop}: {value} -> {relation_ids[prop][value]}")
-        else:
-            logger.debug(f"Skipping relation for {prop}: no valid ID found for value {value}")
-
     logger.debug(f"Notion API payload: {json.dumps(payload, indent=2)}")
-    
-    missing_relations = [key for key in relation_ids if not relation_ids[key]]
-    if missing_relations:
-        logger.warning(f"Missing relation records for keys: {missing_relations} in relation_ids: {json.dumps(relation_ids, indent=2)}")
     
     logger.debug(f"Sending POST request to Notion API: {url} with headers: {headers}")
     response = requests.post(url, json=payload, headers=headers)
