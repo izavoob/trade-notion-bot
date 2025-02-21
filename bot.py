@@ -192,7 +192,7 @@ async def handle_text(update, context):
                 await update.message.reply_text(f"Помилка: відсутні дані для {', '.join(missing_keys)}. Почни заново через 'Додати трейд'.")
             else:
                 create_notion_page(auth_key)
-                await update.message.reply_text(format_summary(user_data[auth_key]))
+                await update.message.reply_text(format_summary(user_data[auth_key]) + "\nТрейд успішно додано!")
                 conn = heroku3.from_key(HEROKU_API_KEY)
                 heroku_app = conn.apps()['tradenotionbot-lg2']
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
@@ -213,6 +213,8 @@ async def handle_text(update, context):
                 del user_data[auth_key]['RR']
         except ValueError:
             await update.message.reply_text("Введи коректне число для RR (наприклад, 2.5):")
+        except Exception as e:
+            await update.message.reply_text(f"Помилка при додаванні трейду: {str(e)}. Спробуй ще раз.")
     else:
         await update.message.reply_text("Спочатку почни додавання трейду через /start.")
 
@@ -285,9 +287,9 @@ async def button(update, context):
     query = update.callback_query
     await query.answer()
 
-    # Якщо чекаємо RR, ігноруємо будь-які callback-запити і просто нагадуємо про текстовий ввід
+    # Якщо чекаємо RR, надсилаємо нове повідомлення без кнопок
     if user_data[auth_key].get('waiting_for_rr'):
-        await query.edit_message_text('Введи RR вручну (наприклад, 2.5):', reply_markup=None)  # Видаляємо кнопки
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):')
         return
     
     # Логіка для інших кроків
@@ -415,7 +417,7 @@ async def button(update, context):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Point B?', reply_markup=reply_markup)
     
-    elif query.data.startswith('pointb_'):
+   elif query.data.startswith('pointb_'):
         user_data[auth_key]['Point B'] = query.data.split('_')[1]
         print(f"Оновлено Point B: {user_data[auth_key]}")
         keyboard = [
@@ -430,8 +432,7 @@ async def button(update, context):
         user_data[auth_key]['SL Position'] = query.data.split('_')[1]
         user_data[auth_key]['waiting_for_rr'] = True
         print(f"Оновлено SL Position і waiting_for_rr: {user_data[auth_key]}")
-        await query.edit_message_text('Введи RR вручну (наприклад, 2.5):', reply_markup=None)  # Видаляємо кнопки
-
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):')  
 # Головна функція для запуску бота
 def main():
     application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(30).write_timeout(30).build()
