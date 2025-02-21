@@ -28,7 +28,7 @@ def fetch_databases_from_parent_page(page_id, notion_token):
         return None, None
     
     data = response.json()
-    print(f"Дочірні елементи батьківської сторінки: {data}")
+    print(f"Дочірні елементи батьківської сторінки {page_id}: {json.dumps(data, indent=2)}")
     
     classification_db_id = None
     execution_page_id = None
@@ -66,7 +66,7 @@ def fetch_databases_from_execution(page_id, notion_token):
         return None
     
     data = response.json()
-    print(f"Дочірні блоки сторінки Execution: {data}")
+    print(f"Дочірні блоки сторінки Execution {page_id}: {json.dumps(data, indent=2)}")
     relation_ids = {
         "Context": {}, "Test POI": {}, "Point A": {}, "Trigger": {}, "VC": {},
         "Entry model": {}, "Entry TF": {}, "Point B": {}, "SL Position": {}
@@ -94,7 +94,7 @@ def fetch_databases_from_execution(page_id, notion_token):
                 relation_ids["Point B"] = fetch_relation_ids(db_id, notion_token)
             elif "Stop Loss position" in db_title:
                 relation_ids["SL Position"] = fetch_relation_ids(db_id, notion_token)
-    print(f"Заповнені relation_ids: {relation_ids}")
+    print(f"Заповнені relation_ids: {json.dumps(relation_ids, indent=2)}")
     return relation_ids
 
 def fetch_relation_ids(database_id, notion_token):
@@ -110,7 +110,7 @@ def fetch_relation_ids(database_id, notion_token):
         return {}
     
     data = response.json()
-    print(f"Записи бази {database_id}: {data}")
+    print(f"Записи бази {database_id}: {json.dumps(data, indent=2)}")
     relation_ids = {}
     for result in data["results"]:
         name_prop = result["properties"].get("Name", {})
@@ -120,7 +120,7 @@ def fetch_relation_ids(database_id, notion_token):
             relation_ids[name] = page_id
             print(f"Додано запис: {name} -> {page_id}")
         else:
-            print(f"Запис у базі {database_id} не має властивості 'Name' або вона порожня: {result}")
+            print(f"Запис у базі {database_id} не має властивості 'Name' або вона порожня: {json.dumps(result, indent=2)}")
     return relation_ids
 
 # Початок роботи бота
@@ -128,7 +128,7 @@ async def start(update, context):
     global user_data
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
-    print(f"Перевірка user_data перед /start: {user_data}")
+    print(f"Перевірка user_data перед /start: {json.dumps(user_data, indent=2)}")
     if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
         instructions = (
             "Щоб використовувати бота:\n"
@@ -188,13 +188,13 @@ async def handle_text(update, context):
             if missing_keys:
                 await update.message.reply_text(f"Помилка: відсутні дані для {', '.join(missing_keys)}. Почни заново через 'Додати трейд'.")
             else:
-                print(f"Спроба додати трейд для користувача {auth_key}: {user_data[auth_key]}")
+                print(f"Спроба додати трейд для користувача {auth_key}: {json.dumps(user_data[auth_key], indent=2)}")
                 create_notion_page(auth_key)
                 await update.message.reply_text(format_summary(user_data[auth_key]) + "\nТрейд успішно додано!")
                 conn = heroku3.from_key(HEROKU_API_KEY)
                 heroku_app = conn.apps()['tradenotionbot-lg2']
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-                print(f"Збережено user_data в HEROKU_USER_DATA: {user_data}")
+                print(f"Збережено user_data в HEROKU_USER_DATA: {json.dumps(user_data, indent=2)}")
                 del user_data[auth_key]['waiting_for_rr']
                 del user_data[auth_key]['Pair']
                 del user_data[auth_key]['Session']
@@ -244,7 +244,7 @@ def create_notion_page(user_id):
         'Notion-Version': "2022-06-28"
     }
     relation_ids = user_data[user_id]['relation_ids']
-    print(f"relation_ids перед створенням сторінки: {relation_ids}")
+    print(f"relation_ids перед створенням сторінки: {json.dumps(relation_ids, indent=2)}")
     payload = {
         'parent': {'database_id': user_data[user_id]['classification_db_id']},
         'properties': {
@@ -266,12 +266,12 @@ def create_notion_page(user_id):
     print(f"Payload для Notion API: {json.dumps(payload, indent=2)}")
     missing_relations = [key for key in relation_ids if not relation_ids[key]]
     if missing_relations:
-        print(f"Попередження: відсутні записи для {missing_relations} у relation_ids: {relation_ids}")
+        print(f"Попередження: відсутні записи для {missing_relations} у relation_ids: {json.dumps(relation_ids, indent=2)}")
     response = requests.post(url, json=payload, headers=headers)
     if response.status_code != 200:
         print(f"Помилка Notion API для користувача {user_id}: {response.status_code} - {response.text}")
     else:
-        print(f"Сторінка успішно додана для користувача {user_id}: {response.json()}")
+        print(f"Сторінка успішно додана для користувача {user_id}: {json.dumps(response.json(), indent=2)}")
 
 # Обробка кнопок
 async def button(update, context):
