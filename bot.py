@@ -224,7 +224,7 @@ async def button(update, context):
     
     elif query.data.startswith('pair_'):
         user_data[auth_key]['Pair'] = query.data.split('_')[1]
-        print(f"Оновлено Pair: {user_data[auth_key]}")  # Дебаг
+        print(f"Оновлено Pair: {user_data[auth_key]}")
         keyboard = [
             [InlineKeyboardButton("Asia", callback_data='session_Asia')],
             [InlineKeyboardButton("Frankfurt", callback_data='session_Frankfurt')],
@@ -237,7 +237,7 @@ async def button(update, context):
     
     elif query.data.startswith('session_'):
         user_data[auth_key]['Session'] = query.data.split('_')[1]
-        print(f"Оновлено Session: {user_data[auth_key]}")  # Дебаг
+        print(f"Оновлено Session: {user_data[auth_key]}")
         keyboard = [
             [InlineKeyboardButton("By Context", callback_data='context_By Context')],
             [InlineKeyboardButton("Against Context", callback_data='context_Against Context')],
@@ -248,7 +248,7 @@ async def button(update, context):
     
     elif query.data.startswith('context_'):
         user_data[auth_key]['Context'] = query.data.split('_')[1]
-        print(f"Оновлено Context: {user_data[auth_key]}")  # Дебаг
+        print(f"Оновлено Context: {user_data[auth_key]}")
         keyboard = [
             [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
             [InlineKeyboardButton(">50@ or FullFill", callback_data='testpoi_>50@ or FullFill')]
@@ -258,7 +258,7 @@ async def button(update, context):
     
     elif query.data.startswith('testpoi_'):
         user_data[auth_key]['Test POI'] = query.data.split('_')[1]
-        print(f"Оновлено Test POI: {user_data[auth_key]}")  # Дебаг
+        print(f"Оновлено Test POI: {user_data[auth_key]}")
         keyboard = [
             [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
             [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')]
@@ -268,7 +268,7 @@ async def button(update, context):
     
     elif query.data.startswith('delivery_'):
         user_data[auth_key]['Delivery to POI'] = query.data.split('_')[1]
-        print(f"Оновлено Delivery to POI: {user_data[auth_key]}")  # Дебаг
+        print(f"Оновлено Delivery to POI: {user_data[auth_key]}")
         keyboard = [
             [InlineKeyboardButton("Fractal Raid", callback_data='pointa_Fractal Raid')],
             [InlineKeyboardButton("RB", callback_data='pointa_RB')],
@@ -280,7 +280,7 @@ async def button(update, context):
     
     elif query.data.startswith('pointa_'):
         user_data[auth_key]['Point A'] = query.data.split('_')[1]
-        print(f"Оновлено Point A: {user_data[auth_key]}")  # Дебаг
+        print(f"Оновлено Point A: {user_data[auth_key]}")
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
@@ -291,7 +291,7 @@ async def button(update, context):
     
     elif query.data.startswith('trigger_'):
         user_data[auth_key]['Trigger'] = query.data.split('_')[1]
-        print(f"Оновлено Trigger: {user_data[auth_key]}")  # Дебаг
+        print(f"Оновлено Trigger: {user_data[auth_key]}")
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
@@ -302,7 +302,7 @@ async def button(update, context):
     
     elif query.data.startswith('vc_'):
         user_data[auth_key]['VC'] = query.data.split('_')[1]
-        print(f"Оновлено VC: {user_data[auth_key]}")  # Дебаг
+        print(f"Оновлено VC: {user_data[auth_key]}")
         keyboard = [
             [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
             [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
@@ -314,7 +314,7 @@ async def button(update, context):
     
     elif query.data.startswith('entrymodel_'):
         user_data[auth_key]['Entry model'] = query.data.split('_')[1]
-        print(f"Оновлено Entry model: {user_data[auth_key]}")  # Дебаг
+        print(f"Оновлено Entry model: {user_data[auth_key]}")
         keyboard = [
             [InlineKeyboardButton("3m", callback_data='entrytf_3m')],
             [InlineKeyboardButton("5m", callback_data='entrytf_5m')],
@@ -327,7 +327,7 @@ async def button(update, context):
     
     elif query.data.startswith('entrytf_'):
         user_data[auth_key]['Entry TF'] = query.data.split('_')[1]
-        print(f"Оновлено Entry TF: {user_data[auth_key]}")  # Дебаг
+        print(f"Оновлено Entry TF: {user_data[auth_key]}")
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='pointb_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='pointb_FVG')]
@@ -337,7 +337,7 @@ async def button(update, context):
     
     elif query.data.startswith('pointb_'):
         user_data[auth_key]['Point B'] = query.data.split('_')[1]
-        print(f"Оновлено Point B: {user_data[auth_key]}")  # Дебаг
+        print(f"Оновлено Point B: {user_data[auth_key]}")
         keyboard = [
             [InlineKeyboardButton("LTF/Lunch Manipulation", callback_data='slposition_LTF/Lunch Manipulation')],
             [InlineKeyboardButton("1H/30m Raid", callback_data='slposition_1H/30m Raid')],
@@ -349,14 +349,14 @@ async def button(update, context):
     elif query.data.startswith('slposition_'):
         user_data[auth_key]['SL Position'] = query.data.split('_')[1]
         user_data[auth_key]['waiting_for_rr'] = True
-        print(f"Оновлено SL Position і waiting_for_rr: {user_data[auth_key]}")  # Дебаг
+        print(f"Оновлено SL Position і waiting_for_rr: {user_data[auth_key]}")
         await query.edit_message_text('Введи RR вручну (наприклад, 2.5):')
     
     # Зберігаємо після кожного оновлення
     conn = heroku3.from_key(HEROKU_API_KEY)
     heroku_app = conn.apps()['tradenotionbot-lg2']
     heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-    print(f"Збережено user_data в HEROKU_USER_DATA: {user_data}")  # Дебаг
+    print(f"Збережено user_data в HEROKU_USER_DATA: {user_data}")
 
 # Головна функція для запуску бота
 def main():
