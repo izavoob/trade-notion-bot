@@ -336,9 +336,12 @@ async def button(update, context):
     
     elif query.data.startswith('trigger_'):
         trigger_value = query.data.split('_')[1]
-        if trigger_value not in user_data[auth_key]['Trigger']:
+        if trigger_value in user_data[auth_key]['Trigger']:
+            user_data[auth_key]['Trigger'].remove(trigger_value)
+            logger.info(f"Removed Trigger for user {user_id}: {trigger_value}. Current Trigger: {user_data[auth_key]['Trigger']}")
+        else:
             user_data[auth_key]['Trigger'].append(trigger_value)
-        logger.info(f"Added Trigger for user {user_id}: {trigger_value}. Current Trigger: {user_data[auth_key]['Trigger']}")
+            logger.info(f"Added Trigger for user {user_id}: {trigger_value}. Current Trigger: {user_data[auth_key]['Trigger']}")
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
@@ -353,6 +356,7 @@ async def button(update, context):
         if not user_data[auth_key]['Trigger']:
             await query.edit_message_text("Обери хоча б один Trigger!")
             return
+        logger.info(f"Trigger selection completed for user {user_id}: {user_data[auth_key]['Trigger']}")
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
@@ -365,9 +369,12 @@ async def button(update, context):
     
     elif query.data.startswith('vc_'):
         vc_value = query.data.split('_')[1]
-        if vc_value not in user_data[auth_key]['VC']:
+        if vc_value in user_data[auth_key]['VC']:
+            user_data[auth_key]['VC'].remove(vc_value)
+            logger.info(f"Removed VC for user {user_id}: {vc_value}. Current VC: {user_data[auth_key]['VC']}")
+        else:
             user_data[auth_key]['VC'].append(vc_value)
-        logger.info(f"Added VC for user {user_id}: {vc_value}. Current VC: {user_data[auth_key]['VC']}")
+            logger.info(f"Added VC for user {user_id}: {vc_value}. Current VC: {user_data[auth_key]['VC']}")
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
@@ -382,6 +389,7 @@ async def button(update, context):
         if not user_data[auth_key]['VC']:
             await query.edit_message_text("Обери хоча б один VC!")
             return
+        logger.info(f"VC selection completed for user {user_id}: {user_data[auth_key]['VC']}")
         keyboard = [
             [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
             [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
