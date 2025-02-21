@@ -1,9 +1,17 @@
 import requests
+import json
+import os
+import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-import os
-import json
 import heroku3
+
+# Налаштування логування
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 # Конфігурація через змінні середовища
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -13,69 +21,77 @@ REDIRECT_URI = os.getenv('REDIRECT_URI')
 HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 
 user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
+logger.info(f"Initial user_data loaded from HEROKU_USER_DATA: {json.dumps(user_data, indent=2)}")
 
-# Функція для отримання баз із батьківської сторінки "A-B-C position Final Bot"
+# Функція для отримання баз із батьківської сторінки
 def fetch_databases_from_parent_page(page_id, notion_token):
+    logger.info(f"Fetching databases from parent page ID: {page_id}")
     url = f"https://api.notion.com/v1/blocks/{page_id}/children"
     headers = {
         "Authorization": f"Bearer {notion_token}",
         "Content-Type": "application/json",
         "Notion-Version": "2022-06-28"
     }
+    logger.debug(f"Requesting Notion API: {url} with headers: {headers}")
     response = requests.get(url, headers=headers)
+    logger.debug(f"Notion API response status: {response.status_code}, content: {response.text}")
+    
     if response.status_code != 200:
-        print(f"Помилка отримання дочірніх елементів сторінки {page_id}: {response.status_code} - {response.text}")
+        logger.error(f"Failed to fetch children of page {page_id}: {response.status_code} - {response.text}")
         return None, None
     
     data = response.json()
-    print(f"Дочірні елементи батьківської сторінки {page_id}: {json.dumps(data, indent=2)}")
+    logger.info(f"Children of parent page {page_id}: {json.dumps(data, indent=2)}")
     
     classification_db_id = None
     execution_page_id = None
     
-    # Шукаємо "Classification" і "Execution"
-    for block in data["results"]:
+    for block in data.get("results", []):
         if block["type"] == "child_database" and "Classification" in block["child_database"]["title"]:
             classification_db_id = block["id"]
-            print(f"Знайдено базу Classification з ID: {classification_db_id}")
+            logger.info(f"Found Classification database with ID: {classification_db_id}")
         elif block["type"] == "child_page" and "Execution" in block["child_page"]["title"]:
             execution_page_id = block["id"]
-            print(f"Знайдено сторінку Execution з ID: {execution_page_id}")
+            logger.info(f"Found Execution page with ID: {execution_page_id}")
     
     if not classification_db_id:
-        print("Базу 'Classification' не знайдено на батьківській сторінці.")
+        logger.error("Classification database not found on parent page.")
         return None, None
     if not execution_page_id:
-        print("Сторінку 'Execution' не знайдено на батьківській сторінці.")
+        logger.error("Execution page not found on parent page.")
         return None, None
     
-    # Отримуємо бази з "Execution"
     relation_ids = fetch_databases_from_execution(execution_page_id, notion_token)
     return classification_db_id, relation_ids
 
 def fetch_databases_from_execution(page_id, notion_token):
+    logger.info(f"Fetching databases from Execution page ID: {page_id}")
     url = f"https://api.notion.com/v1/blocks/{page_id}/children"
     headers = {
         "Authorization": f"Bearer {notion_token}",
         "Content-Type": "application/json",
         "Notion-Version": "2022-06-28"
     }
+    logger.debug(f"Requesting Notion API: {url} with headers: {headers}")
     response = requests.get(url, headers=headers)
+    logger.debug(f"Notion API response status: {response.status_code}, content: {response.text}")
+    
     if response.status_code != 200:
-        print(f"Помилка отримання баз із Execution: {response.status_code} - {response.text}")
+        logger.error(f"Failed to fetch children of Execution page {page_id}: {response.status_code} - {response.text}")
         return None
     
     data = response.json()
-    print(f"Дочірні блоки сторінки Execution {page_id}: {json.dumps(data, indent=2)}")
+    logger.info(f"Children of Execution page {page_id}: {json.dumps(data, indent=2)}")
     relation_ids = {
         "Context": {}, "Test POI": {}, "Point A": {}, "Trigger": {}, "VC": {},
         "Entry model": {}, "Entry TF": {}, "Point B": {}, "SL Position": {}
     }
-    for block in data["results"]:
+    
+    for block in data.get("results", []):
         if block["type"] == "child_database":
             db_title = block["child_database"]["title"]
             db_id = block["id"]
-            print(f"Знайдено базу: {db_title} з ID {db_id}")
+            logger.info(f"Found database: {db_title} with ID: {db_id}")
             if "Context" in db_title:
                 relation_ids["Context"] = fetch_relation_ids(db_id, notion_token)
             elif "Test POI" in db_title:
@@ -94,33 +110,40 @@ def fetch_databases_from_execution(page_id, notion_token):
                 relation_ids["Point B"] = fetch_relation_ids(db_id, notion_token)
             elif "Stop Loss position" in db_title:
                 relation_ids["SL Position"] = fetch_relation_ids(db_id, notion_token)
-    print(f"Заповнені relation_ids: {json.dumps(relation_ids, indent=2)}")
+    
+    logger.info(f"Collected relation_ids from Execution: {json.dumps(relation_ids, indent=2)}")
     return relation_ids
 
 def fetch_relation_ids(database_id, notion_token):
+    logger.info(f"Fetching relation IDs from database ID: {database_id}")
     url = f"https://api.notion.com/v1/databases/{database_id}/query"
     headers = {
         "Authorization": f"Bearer {notion_token}",
         "Content-Type": "application/json",
         "Notion-Version": "2022-06-28"
     }
+    logger.debug(f"Requesting Notion API: {url} with headers: {headers}")
     response = requests.post(url, headers=headers)
+    logger.debug(f"Notion API response status: {response.status_code}, content: {response.text}")
+    
     if response.status_code != 200:
-        print(f"Помилка отримання записів із бази {database_id}: {response.status_code} - {response.text}")
+        logger.error(f"Failed to query database {database_id}: {response.status_code} - {response.text}")
         return {}
     
     data = response.json()
-    print(f"Записи бази {database_id}: {json.dumps(data, indent=2)}")
+    logger.info(f"Records from database {database_id}: {json.dumps(data, indent=2)}")
     relation_ids = {}
-    for result in data["results"]:
+    
+    for result in data.get("results", []):
         name_prop = result["properties"].get("Name", {})
         if name_prop.get("title") and name_prop["title"]:
             name = name_prop["title"][0]["text"]["content"]
             page_id = result["id"]
             relation_ids[name] = page_id
-            print(f"Додано запис: {name} -> {page_id}")
+            logger.info(f"Added relation: {name} -> {page_id}")
         else:
-            print(f"Запис у базі {database_id} не має властивості 'Name' або вона порожня: {json.dumps(result, indent=2)}")
+            logger.warning(f"Record in database {database_id} has no 'Name' property or it's empty: {json.dumps(result, indent=2)}")
+    
     return relation_ids
 
 # Початок роботи бота
@@ -128,7 +151,8 @@ async def start(update, context):
     global user_data
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
-    print(f"Перевірка user_data перед /start: {json.dumps(user_data, indent=2)}")
+    logger.info(f"Start command received from user {user_id}. Current user_data: {json.dumps(user_data, indent=2)}")
+    
     if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
         instructions = (
             "Щоб використовувати бота:\n"
@@ -136,13 +160,15 @@ async def start(update, context):
             "2. Авторизуйся нижче і введи ID батьківської сторінки 'A-B-C position Final Bot' (32 символи з URL)."
         )
         auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
-        print(f"Сформований auth_url: {auth_url}")
+        logger.info(f"Generated Notion auth URL: {auth_url}")
         keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(instructions, reply_markup=reply_markup)
     elif 'parent_page_id' not in user_data[auth_key]:
         await update.message.reply_text('Введи ID батьківської сторінки "A-B-C position Final Bot" (32 символи з URL):')
+        logger.info(f"Prompted user {user_id} to enter parent page ID.")
     elif 'classification_db_id' not in user_data[auth_key] or 'relation_ids' not in user_data[auth_key]:
+        logger.info(f"Fetching Classification and relation IDs for user {user_id} with parent_page_id: {user_data[auth_key]['parent_page_id']}")
         classification_db_id, relation_ids = fetch_databases_from_parent_page(user_data[auth_key]['parent_page_id'], user_data[auth_key]['notion_token'])
         if classification_db_id and relation_ids:
             user_data[auth_key]['classification_db_id'] = classification_db_id
@@ -150,23 +176,29 @@ async def start(update, context):
             conn = heroku3.from_key(HEROKU_API_KEY)
             heroku_app = conn.apps()['tradenotionbot-lg2']
             heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+            logger.info(f"Saved classification_db_id: {classification_db_id} and relation_ids to user_data for {auth_key}: {json.dumps(user_data[auth_key], indent=2)}")
             keyboard = [[InlineKeyboardButton("Додати трейд", callback_data='add_trade')]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
         else:
+            logger.error(f"Failed to fetch Classification or relation IDs for user {user_id}")
             await update.message.reply_text('Помилка: не вдалося знайти базу "Classification" або сторінку "Execution". Перевір правильність ID сторінки.')
     else:
         keyboard = [[InlineKeyboardButton("Додати трейд", callback_data='add_trade')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
+        logger.info(f"User {user_id} ready to add trade. Current user_data: {json.dumps(user_data[auth_key], indent=2)}")
 
 # Обробка текстового вводу
 async def handle_text(update, context):
     global user_data
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
+    logger.info(f"Text input received from user {user_id}: {update.message.text}")
+    
     if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
         await update.message.reply_text("Спочатку авторизуйся через /start.")
+        logger.warning(f"User {user_id} not authenticated.")
     elif 'parent_page_id' not in user_data[auth_key]:
         text = update.message.text
         if len(text) == 32:
@@ -174,11 +206,14 @@ async def handle_text(update, context):
             conn = heroku3.from_key(HEROKU_API_KEY)
             heroku_app = conn.apps()['tradenotionbot-lg2']
             heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+            logger.info(f"Saved parent_page_id: {text} for user {user_id}. Updated user_data: {json.dumps(user_data[auth_key], indent=2)}")
             await update.message.reply_text('ID сторінки збережено! Напиши /start.')
         else:
+            logger.warning(f"Invalid parent_page_id length from user {user_id}: {text}")
             await update.message.reply_text('Неправильний ID. Введи 32 символи з URL сторінки "A-B-C position Final Bot".')
     elif 'waiting_for_rr' in user_data[auth_key]:
         rr_input = update.message.text
+        logger.info(f"Received RR input from user {user_id}: {rr_input}")
         try:
             rr = float(rr_input)
             user_data[auth_key]['RR'] = rr
@@ -186,15 +221,16 @@ async def handle_text(update, context):
                             'Trigger', 'VC', 'Entry model', 'Entry TF', 'Point B', 'SL Position', 'RR']
             missing_keys = [key for key in required_keys if key not in user_data[auth_key]]
             if missing_keys:
+                logger.error(f"Missing required keys for user {user_id}: {missing_keys}")
                 await update.message.reply_text(f"Помилка: відсутні дані для {', '.join(missing_keys)}. Почни заново через 'Додати трейд'.")
             else:
-                print(f"Спроба додати трейд для користувача {auth_key}: {json.dumps(user_data[auth_key], indent=2)}")
+                logger.info(f"Attempting to create Notion page for user {user_id} with data: {json.dumps(user_data[auth_key], indent=2)}")
                 create_notion_page(auth_key)
                 await update.message.reply_text(format_summary(user_data[auth_key]) + "\nТрейд успішно додано!")
                 conn = heroku3.from_key(HEROKU_API_KEY)
                 heroku_app = conn.apps()['tradenotionbot-lg2']
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-                print(f"Збережено user_data в HEROKU_USER_DATA: {json.dumps(user_data, indent=2)}")
+                logger.info(f"Trade added successfully for user {user_id}. Updated user_data: {json.dumps(user_data, indent=2)}")
                 del user_data[auth_key]['waiting_for_rr']
                 del user_data[auth_key]['Pair']
                 del user_data[auth_key]['Session']
@@ -210,15 +246,18 @@ async def handle_text(update, context):
                 del user_data[auth_key]['SL Position']
                 del user_data[auth_key]['RR']
         except ValueError:
+            logger.warning(f"Invalid RR input from user {user_id}: {rr_input}")
             await update.message.reply_text("Введи коректне число для RR (наприклад, 2.5):")
         except Exception as e:
+            logger.error(f"Error adding trade for user {user_id}: {str(e)}", exc_info=True)
             await update.message.reply_text(f"Помилка при додаванні трейду: {str(e)}. Спробуй ще раз.")
     else:
         await update.message.reply_text("Спочатку почни додавання трейду через /start.")
+        logger.info(f"User {user_id} sent text outside of trade flow: {update.message.text}")
 
 # Форматування підсумку
 def format_summary(data):
-    return (
+    summary = (
         f"Трейд додано!\n"
         f"Pair: {data['Pair']}\n"
         f"Session: {data['Session']}\n"
@@ -234,9 +273,12 @@ def format_summary(data):
         f"SL Position: {data['SL Position']}\n"
         f"RR: {data['RR']}"
     )
+    logger.info(f"Generated trade summary: {summary}")
+    return summary
 
 # Створення сторінки в Notion
 def create_notion_page(user_id):
+    logger.info(f"Creating Notion page for user {user_id}")
     url = 'https://api.notion.com/v1/pages'
     headers = {
         'Authorization': f'Bearer {user_data[user_id]["notion_token"]}',
@@ -244,7 +286,8 @@ def create_notion_page(user_id):
         'Notion-Version': "2022-06-28"
     }
     relation_ids = user_data[user_id]['relation_ids']
-    print(f"relation_ids перед створенням сторінки: {json.dumps(relation_ids, indent=2)}")
+    logger.info(f"relation_ids for user {user_id}: {json.dumps(relation_ids, indent=2)}")
+    
     payload = {
         'parent': {'database_id': user_data[user_id]['classification_db_id']},
         'properties': {
@@ -263,38 +306,45 @@ def create_notion_page(user_id):
             'RR': {'number': user_data[user_id]['RR']}
         }
     }
-    print(f"Payload для Notion API: {json.dumps(payload, indent=2)}")
+    logger.debug(f"Notion API payload: {json.dumps(payload, indent=2)}")
+    
     missing_relations = [key for key in relation_ids if not relation_ids[key]]
     if missing_relations:
-        print(f"Попередження: відсутні записи для {missing_relations} у relation_ids: {json.dumps(relation_ids, indent=2)}")
+        logger.warning(f"Missing relation records for keys: {missing_relations} in relation_ids: {json.dumps(relation_ids, indent=2)}")
+    
+    logger.debug(f"Sending POST request to Notion API: {url} with headers: {headers}")
     response = requests.post(url, json=payload, headers=headers)
+    logger.debug(f"Notion API response status: {response.status_code}, content: {response.text}")
+    
     if response.status_code != 200:
-        print(f"Помилка Notion API для користувача {user_id}: {response.status_code} - {response.text}")
+        logger.error(f"Notion API error for user {user_id}: {response.status_code} - {response.text}")
     else:
-        print(f"Сторінка успішно додана для користувача {user_id}: {json.dumps(response.json(), indent=2)}")
+        logger.info(f"Successfully created page for user {user_id}: {json.dumps(response.json(), indent=2)}")
 
 # Обробка кнопок
 async def button(update, context):
     global user_data
-    user_id = str(update.message.from_user.id) if update.message else str(update.callback_query.from_user.id)
+    query = update.callback_query
+    user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
+    logger.info(f"Button callback received from user {user_id}: {query.data}")
+    
+    await query.answer()
     
     if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
-        await update.callback_query.edit_message_text("Спочатку авторизуйся через /start.")
+        await query.edit_message_text("Спочатку авторизуйся через /start.")
+        logger.warning(f"User {user_id} not authenticated for button callback.")
         return
     if 'parent_page_id' not in user_data[auth_key]:
-        await update.callback_query.edit_message_text("Спочатку введи ID сторінки через /start.")
+        await query.edit_message_text("Спочатку введи ID сторінки через /start.")
+        logger.warning(f"User {user_id} has not provided parent_page_id.")
         return
     
-    query = update.callback_query
-    await query.answer()
-
-    # Якщо чекаємо RR, надсилаємо нове повідомлення без кнопок
     if user_data[auth_key].get('waiting_for_rr'):
         await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):')
+        logger.info(f"User {user_id} in waiting_for_rr state, prompted for RR input.")
         return
     
-    # Логіка для інших кроків
     if query.data == 'add_trade':
         keyboard = [
             [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
@@ -305,10 +355,11 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Pair?', reply_markup=reply_markup)
+        logger.info(f"User {user_id} started trade flow with Pair selection.")
     
     elif query.data.startswith('pair_'):
         user_data[auth_key]['Pair'] = query.data.split('_')[1]
-        print(f"Оновлено Pair: {user_data[auth_key]}")
+        logger.info(f"Updated Pair for user {user_id}: {user_data[auth_key]['Pair']}")
         keyboard = [
             [InlineKeyboardButton("Asia", callback_data='session_Asia')],
             [InlineKeyboardButton("Frankfurt", callback_data='session_Frankfurt')],
@@ -321,7 +372,7 @@ async def button(update, context):
     
     elif query.data.startswith('session_'):
         user_data[auth_key]['Session'] = query.data.split('_')[1]
-        print(f"Оновлено Session: {user_data[auth_key]}")
+        logger.info(f"Updated Session for user {user_id}: {user_data[auth_key]['Session']}")
         keyboard = [
             [InlineKeyboardButton("By Context", callback_data='context_By Context')],
             [InlineKeyboardButton("Against Context", callback_data='context_Against Context')],
@@ -332,7 +383,7 @@ async def button(update, context):
     
     elif query.data.startswith('context_'):
         user_data[auth_key]['Context'] = query.data.split('_')[1]
-        print(f"Оновлено Context: {user_data[auth_key]}")
+        logger.info(f"Updated Context for user {user_id}: {user_data[auth_key]['Context']}")
         keyboard = [
             [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
             [InlineKeyboardButton(">50@ or FullFill", callback_data='testpoi_>50@ or FullFill')]
@@ -342,7 +393,7 @@ async def button(update, context):
     
     elif query.data.startswith('testpoi_'):
         user_data[auth_key]['Test POI'] = query.data.split('_')[1]
-        print(f"Оновлено Test POI: {user_data[auth_key]}")
+        logger.info(f"Updated Test POI for user {user_id}: {user_data[auth_key]['Test POI']}")
         keyboard = [
             [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
             [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')]
@@ -352,7 +403,7 @@ async def button(update, context):
     
     elif query.data.startswith('delivery_'):
         user_data[auth_key]['Delivery to POI'] = query.data.split('_')[1]
-        print(f"Оновлено Delivery to POI: {user_data[auth_key]}")
+        logger.info(f"Updated Delivery to POI for user {user_id}: {user_data[auth_key]['Delivery to POI']}")
         keyboard = [
             [InlineKeyboardButton("Fractal Raid", callback_data='pointa_Fractal Raid')],
             [InlineKeyboardButton("RB", callback_data='pointa_RB')],
@@ -364,7 +415,7 @@ async def button(update, context):
     
     elif query.data.startswith('pointa_'):
         user_data[auth_key]['Point A'] = query.data.split('_')[1]
-        print(f"Оновлено Point A: {user_data[auth_key]}")
+        logger.info(f"Updated Point A for user {user_id}: {user_data[auth_key]['Point A']}")
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
@@ -375,7 +426,7 @@ async def button(update, context):
     
     elif query.data.startswith('trigger_'):
         user_data[auth_key]['Trigger'] = query.data.split('_')[1]
-        print(f"Оновлено Trigger: {user_data[auth_key]}")
+        logger.info(f"Updated Trigger for user {user_id}: {user_data[auth_key]['Trigger']}")
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
@@ -386,7 +437,7 @@ async def button(update, context):
     
     elif query.data.startswith('vc_'):
         user_data[auth_key]['VC'] = query.data.split('_')[1]
-        print(f"Оновлено VC: {user_data[auth_key]}")
+        logger.info(f"Updated VC for user {user_id}: {user_data[auth_key]['VC']}")
         keyboard = [
             [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
             [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
@@ -398,7 +449,7 @@ async def button(update, context):
     
     elif query.data.startswith('entrymodel_'):
         user_data[auth_key]['Entry model'] = query.data.split('_')[1]
-        print(f"Оновлено Entry model: {user_data[auth_key]}")
+        logger.info(f"Updated Entry model for user {user_id}: {user_data[auth_key]['Entry model']}")
         keyboard = [
             [InlineKeyboardButton("3m", callback_data='entrytf_3m')],
             [InlineKeyboardButton("5m", callback_data='entrytf_5m')],
@@ -411,7 +462,7 @@ async def button(update, context):
     
     elif query.data.startswith('entrytf_'):
         user_data[auth_key]['Entry TF'] = query.data.split('_')[1]
-        print(f"Оновлено Entry TF: {user_data[auth_key]}")
+        logger.info(f"Updated Entry TF for user {user_id}: {user_data[auth_key]['Entry TF']}")
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='pointb_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='pointb_FVG')]
@@ -421,7 +472,7 @@ async def button(update, context):
     
     elif query.data.startswith('pointb_'):
         user_data[auth_key]['Point B'] = query.data.split('_')[1]
-        print(f"Оновлено Point B: {user_data[auth_key]}")
+        logger.info(f"Updated Point B for user {user_id}: {user_data[auth_key]['Point B']}")
         keyboard = [
             [InlineKeyboardButton("LTF/Lunch Manipulation", callback_data='slposition_LTF/Lunch Manipulation')],
             [InlineKeyboardButton("1H/30m Raid", callback_data='slposition_1H/30m Raid')],
@@ -433,16 +484,19 @@ async def button(update, context):
     elif query.data.startswith('slposition_'):
         user_data[auth_key]['SL Position'] = query.data.split('_')[1]
         user_data[auth_key]['waiting_for_rr'] = True
-        print(f"Оновлено SL Position і waiting_for_rr: {user_data[auth_key]}")
+        logger.info(f"Updated SL Position and set waiting_for_rr for user {user_id}: {json.dumps(user_data[auth_key], indent=2)}")
         await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):')
 
 # Головна функція для запуску бота
 def main():
+    logger.info("Starting bot with TELEGRAM_TOKEN: [REDACTED]")
     application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(30).write_timeout(30).build()
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    logger.info("Bot handlers registered. Starting polling...")
     application.run_polling()
+    logger.info("Bot polling stopped.")
 
 if __name__ == '__main__':
     main()
