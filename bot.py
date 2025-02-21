@@ -15,56 +15,81 @@ HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 # Завантажуємо user_data один раз при старті бота
 user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
 
-# Мапінг значень для "Relation"
-RELATION_IDS = {
-    'Context': {
-        'Against Context': '1a084b079a828143ad09fea9de3ea593',
-        'By Context': '1a084b079a82815bb117c38c1e54e443',
-        'Neutral Context': '1a084b079a8281ac87ffd9b9251eb9f6'
-    },
-    'Test POI': {
-        '>50@ or FullFill': '1a084b079a828121874ef45d9b58ead8',
-        'Minimal': '1a184b079a82801aa510fde344303b9d'
-    },
-    'Point A': {
-        'SNR': '1a084b079a82812e8f6fe33c1e19e95b',
-        'FVG': '1a084b079a828182bea3c8c27deaa134',
-        'Fractal Raid': '1a084b079a8281dc9903e1fe26df44c6',
-        'RB': '1a084b079a828144aeead84eb2147680'
-    },
-    'Trigger': {
-        'FVG': '1a084b079a828141b08dce31c1826006',
-        'No Trigger': '1a084b079a82815398c6dd36c8dd9bdc',
-        'Fractal Swing': '1a084b079a8281b29c1ee9673723b42a'
-    },
-    'VC': {
-        'FVG': '1a084b079a82814d80e6f3e073eae4dd',
-        'Inversion': '1a084b079a8281b18387ef9e2ab02a31',
-        'SNR': '1a084b079a828119aa86d94e8fd0a012'
-    },
-    'Entry model': {
-        'Inversion': '1a084b079a82819393a1f80b69affc20',
-        'Displacement': '1a084b079a8281a1b9fadb1ab862a353',
-        'SNR': '1a084b079a8281c3b955d789ce6396f6',
-        'IDM': '1a084b079a8281fb8212fdd3d04e598c'
-    },
-    'Entry TF': {
-        '5m': '1a084b079a8281ce86a4ffd97970ae66',
-        '15m': '1a084b079a82813e80bafa257eef5fc6',
-        '4H': '1a084b079a82818ab108cb21587e6c08',
-        '3m': '1a084b079a82819bb09ae1b4362edbb0',
-        '1H/30m': '1a084b079a8281eabeaef14161a20169'
-    },
-    'Point B': {
-        'FVG': '1a084b079a82811c9cc9c1b8e16dc876',
-        'Fractal Swing': '1a084b079a8281d1ba74c8b2d4f23d43'
-    },
-    'SL Position': {
-        '1H/30m Raid': '1a084b079a82816d91f4c20441a5e6fb',
-        'LTF/Lunch Manipulation': '1a084b079a828150ab31f4571d22e8f9',
-        '4H Raid': '1a084b079a82815ab240f3ffbc680f18'
+# Функція для отримання ID пов’язаних баз із "Execution"
+def fetch_execution_databases(database_id, notion_token):
+    url = f"https://api.notion.com/v1/databases/{database_id}/query"
+    headers = {
+        "Authorization": f"Bearer {notion_token}",
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28"
     }
-}
+    response = requests.post(url, headers=headers)
+    if response.status_code == 200:
+        data = response.json()
+        for result in data["results"]:
+            if "Execution" in result["properties"]["Name"]["title"][0]["text"]["content"]:
+                execution_page_id = result["id"]
+                return fetch_databases_from_execution(execution_page_id, notion_token)
+    return None
+
+# Функція для отримання баз із сторінки "Execution"
+def fetch_databases_from_execution(page_id, notion_token):
+    url = f"https://api.notion.com/v1/blocks/{page_id}/children"
+    headers = {
+        "Authorization": f"Bearer {notion_token}",
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28"
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        data = response.json()
+        relation_ids = {
+            "Context": {}, "Test POI": {}, "Point A": {}, "Trigger": {}, "VC": {},
+            "Entry model": {}, "Entry TF": {}, "Point B": {}, "SL Position": {}
+        }
+        for block in data["results"]:
+            if block["type"] == "child_database":
+                db_title = block["child_database"]["title"]
+                db_id = block["id"]
+                if "Context" in db_title:
+                    relation_ids["Context"] = fetch_relation_ids(db_id, notion_token)
+                elif "Test POI" in db_title:
+                    relation_ids["Test POI"] = fetch_relation_ids(db_id, notion_token)
+                elif "Point A" in db_title:
+                    relation_ids["Point A"] = fetch_relation_ids(db_id, notion_token)
+                elif "Trigger" in db_title:
+                    relation_ids["Trigger"] = fetch_relation_ids(db_id, notion_token)
+                elif "VC" in db_title:
+                    relation_ids["VC"] = fetch_relation_ids(db_id, notion_token)
+                elif "Entry model" in db_title:
+                    relation_ids["Entry model"] = fetch_relation_ids(db_id, notion_token)
+                elif "Entry TF" in db_title:
+                    relation_ids["Entry TF"] = fetch_relation_ids(db_id, notion_token)
+                elif "Point B" in db_title:
+                    relation_ids["Point B"] = fetch_relation_ids(db_id, notion_token)
+                elif "SL Position" in db_title:
+                    relation_ids["SL Position"] = fetch_relation_ids(db_id, notion_token)
+        return relation_ids
+    return None
+
+# Функція для отримання ID записів із бази
+def fetch_relation_ids(database_id, notion_token):
+    url = f"https://api.notion.com/v1/databases/{database_id}/query"
+    headers = {
+        "Authorization": f"Bearer {notion_token}",
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28"
+    }
+    response = requests.post(url, headers=headers)
+    if response.status_code == 200:
+        data = response.json()
+        relation_ids = {}
+        for result in data["results"]:
+            name = result["properties"]["Name"]["title"][0]["text"]["content"]
+            page_id = result["id"]
+            relation_ids[name] = page_id
+        return relation_ids
+    return None
 
 # Початок роботи бота
 async def start(update, context):
@@ -73,13 +98,30 @@ async def start(update, context):
     auth_key = f"{user_id}user"
     print(f"Перевірка user_data перед /start: {user_data}")
     if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
+        instructions = (
+            "Щоб використовувати бота:\n"
+            "1. Скопіюй сторінку за посиланням: https://www.notion.so/A-B-C-position-Final-Bot-1a084b079a8280d29d5ecc9316e02c5d\n"
+            "2. Авторизуйся нижче і введи ID бази 'Classification'."
+        )
         auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
         print(f"Сформований auth_url: {auth_url}")
         keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text('Спочатку авторизуйся в Notion:', reply_markup=reply_markup)
+        await update.message.reply_text(instructions, reply_markup=reply_markup)
     elif 'database_id' not in user_data[auth_key]:
         await update.message.reply_text('Введи ID бази "Classification" (32 символи з URL):')
+    elif 'relation_ids' not in user_data[auth_key]:
+        relation_ids = fetch_execution_databases(user_data[auth_key]['database_id'], user_data[auth_key]['notion_token'])
+        if relation_ids:
+            user_data[auth_key]['relation_ids'] = relation_ids
+            conn = heroku3.from_key(HEROKU_API_KEY)
+            heroku_app = conn.apps()['tradenotionbot-lg2']
+            heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+            keyboard = [[InlineKeyboardButton("Додати трейд", callback_data='add_trade')]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
+        else:
+            await update.message.reply_text('Помилка: не вдалося знайти бази в "Execution". Перевір ID.')
     else:
         keyboard = [[InlineKeyboardButton("Додати трейд", callback_data='add_trade')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -96,7 +138,6 @@ async def handle_text(update, context):
         text = update.message.text
         if len(text) == 32:
             user_data[auth_key]['database_id'] = text
-            # Зберігаємо в Heroku після введення database_id
             conn = heroku3.from_key(HEROKU_API_KEY)
             heroku_app = conn.apps()['tradenotionbot-lg2']
             heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
@@ -108,7 +149,6 @@ async def handle_text(update, context):
         try:
             rr = float(rr_input)
             user_data[auth_key]['RR'] = rr
-            # Перевіряємо, чи всі необхідні ключі присутні
             required_keys = ['Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
                             'Trigger', 'VC', 'Entry model', 'Entry TF', 'Point B', 'SL Position', 'RR']
             missing_keys = [key for key in required_keys if key not in user_data[auth_key]]
@@ -117,12 +157,10 @@ async def handle_text(update, context):
             else:
                 create_notion_page(auth_key)
                 await update.message.reply_text(format_summary(user_data[auth_key]))
-                # Зберігаємо в Heroku лише після завершення трейду
                 conn = heroku3.from_key(HEROKU_API_KEY)
                 heroku_app = conn.apps()['tradenotionbot-lg2']
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
                 print(f"Збережено user_data в HEROKU_USER_DATA: {user_data}")
-                # Очищаємо дані після успішного трейду
                 del user_data[auth_key]['waiting_for_rr']
                 del user_data[auth_key]['Pair']
                 del user_data[auth_key]['Session']
@@ -167,23 +205,24 @@ def create_notion_page(user_id):
     headers = {
         'Authorization': f'Bearer {user_data[user_id]["notion_token"]}',
         'Content-Type': 'application/json',
-        'Notion-Version': '2022-06-28'
+        'Notion-Version': "2022-06-28"
     }
+    relation_ids = user_data[user_id]['relation_ids']
     payload = {
         'parent': {'database_id': user_data[user_id]['database_id']},
         'properties': {
             'Pair': {'select': {'name': user_data[user_id]['Pair']}},
             'Session': {'select': {'name': user_data[user_id]['Session']}},
-            'Context': {'relation': [{'id': RELATION_IDS['Context'][user_data[user_id]['Context']]}]},
-            'Test POI': {'relation': [{'id': RELATION_IDS['Test POI'][user_data[user_id]['Test POI']]}]},
+            'Context': {'relation': [{'id': relation_ids['Context'][user_data[user_id]['Context']]}]},
+            'Test POI': {'relation': [{'id': relation_ids['Test POI'][user_data[user_id]['Test POI']]}]},
             'Delivery to POI': {'select': {'name': user_data[user_id]['Delivery to POI']}},
-            'Point A': {'relation': [{'id': RELATION_IDS['Point A'][user_data[user_id]['Point A']]}]},
-            'Trigger': {'relation': [{'id': RELATION_IDS['Trigger'][user_data[user_id]['Trigger']]}]},
-            'VC': {'relation': [{'id': RELATION_IDS['VC'][user_data[user_id]['VC']]}]},
-            'Entry Model': {'relation': [{'id': RELATION_IDS['Entry model'][user_data[user_id]['Entry model']]}]},
-            'Entry TF': {'relation': [{'id': RELATION_IDS['Entry TF'][user_data[user_id]['Entry TF']]}]},
-            'Point B': {'relation': [{'id': RELATION_IDS['Point B'][user_data[user_id]['Point B']]}]},
-            'SL Position': {'relation': [{'id': RELATION_IDS['SL Position'][user_data[user_id]['SL Position']]}]},
+            'Point A': {'relation': [{'id': relation_ids['Point A'][user_data[user_id]['Point A']]}]},
+            'Trigger': {'relation': [{'id': relation_ids['Trigger'][user_data[user_id]['Trigger']]}]},
+            'VC': {'relation': [{'id': relation_ids['VC'][user_data[user_id]['VC']]}]},
+            'Entry Model': {'relation': [{'id': relation_ids['Entry model'][user_data[user_id]['Entry model']]}]},
+            'Entry TF': {'relation': [{'id': relation_ids['Entry TF'][user_data[user_id]['Entry TF']]}]},
+            'Point B': {'relation': [{'id': relation_ids['Point B'][user_data[user_id]['Point B']]}]},
+            'SL Position': {'relation': [{'id': relation_ids['SL Position'][user_data[user_id]['SL Position']]}]},
             'RR': {'number': user_data[user_id]['RR']}
         }
     }
