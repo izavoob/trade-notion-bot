@@ -9,7 +9,7 @@ import heroku3
 # Налаштування логування
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG  # Змінено на DEBUG для максимальної деталізації
+    level=logging.DEBUG
 )
 logger = logging.getLogger(__name__)
 
@@ -300,19 +300,20 @@ def create_notion_page(user_id):
         'properties': {
             'Pair': {'select': {'name': user_data[user_id]['Pair']}},
             'Session': {'select': {'name': user_data[user_id]['Session']}},
-            'Context': {'relation': [{'id': relation_ids['Context'].get(user_data[user_id]['Context'], '')}] if 'Context' in relation_ids and relation_ids['Context'] else {}},
-            'Test POI': {'relation': [{'id': relation_ids['Test POI'].get(user_data[user_id]['Test POI'], '')}] if 'Test POI' in relation_ids and relation_ids['Test POI'] else {}},
             'Delivery to POI': {'select': {'name': user_data[user_id]['Delivery to POI']}},
-            'Point A': {'relation': [{'id': relation_ids['Point A'].get(user_data[user_id]['Point A'], '')}] if 'Point A' in relation_ids and relation_ids['Point A'] else {}},
-            'Trigger': {'relation': [{'id': relation_ids['Trigger'].get(user_data[user_id]['Trigger'], '')}] if 'Trigger' in relation_ids and relation_ids['Trigger'] else {}},
-            'VC': {'relation': [{'id': relation_ids['VC'].get(user_data[user_id]['VC'], '')}] if 'VC' in relation_ids and relation_ids['VC'] else {}},
-            'Entry Model': {'relation': [{'id': relation_ids['Entry model'].get(user_data[user_id]['Entry model'], '')}] if 'Entry model' in relation_ids and relation_ids['Entry model'] else {}},
-            'Entry TF': {'relation': [{'id': relation_ids['Entry TF'].get(user_data[user_id]['Entry TF'], '')}] if 'Entry TF' in relation_ids and relation_ids['Entry TF'] else {}},
-            'Point B': {'relation': [{'id': relation_ids['Point B'].get(user_data[user_id]['Point B'], '')}] if 'Point B' in relation_ids and relation_ids['Point B'] else {}},
-            'SL Position': {'relation': [{'id': relation_ids['SL Position'].get(user_data[user_id]['SL Position'], '')}] if 'SL Position' in relation_ids and relation_ids['SL Position'] else {}},
             'RR': {'number': user_data[user_id]['RR']}
         }
     }
+    
+    # Додаємо поля типу relation лише якщо є відповідний ID
+    for prop in ['Context', 'Test POI', 'Point A', 'Trigger', 'VC', 'Entry model', 'Entry TF', 'Point B', 'SL Position']:
+        value = user_data[user_id].get(prop)
+        if value and prop in relation_ids and relation_ids[prop].get(value):
+            payload['properties'][prop] = {'relation': [{'id': relation_ids[prop][value]}]}
+            logger.debug(f"Added relation for {prop}: {value} -> {relation_ids[prop][value]}")
+        else:
+            logger.debug(f"Skipping relation for {prop}: no valid ID found for value {value}")
+
     logger.debug(f"Notion API payload: {json.dumps(payload, indent=2)}")
     
     missing_relations = [key for key in relation_ids if not relation_ids[key]]
