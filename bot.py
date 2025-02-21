@@ -12,24 +12,48 @@ CLIENT_SECRET = os.getenv('NOTION_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('REDIRECT_URI')
 HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 
-# Завантажуємо user_data один раз при старті бота
 user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
 
-# Функція для отримання ID пов’язаних баз із "Execution"
+# Функція для отримання батьківської сторінки бази "Classification" і пошуку "Execution"
 def fetch_execution_databases(database_id, notion_token):
-    url = f"https://api.notion.com/v1/databases/{database_id}/query"
+    # Крок 1: Отримуємо інформацію про базу "Classification"
+    url = f"https://api.notion.com/v1/databases/{database_id}"
     headers = {
         "Authorization": f"Bearer {notion_token}",
         "Content-Type": "application/json",
         "Notion-Version": "2022-06-28"
     }
-    response = requests.post(url, headers=headers)
-    if response.status_code == 200:
-        data = response.json()
-        for result in data["results"]:
-            if "Execution" in result["properties"]["Name"]["title"][0]["text"]["content"]:
-                execution_page_id = result["id"]
-                return fetch_databases_from_execution(execution_page_id, notion_token)
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        print(f"Помилка отримання бази Classification: {response.status_code} - {response.text}")
+        return None
+    
+    data = response.json()
+    print(f"Інформація про базу Classification: {data}")
+    parent = data.get("parent", {})
+    if parent.get("type") != "page_id":
+        print("База Classification не знаходиться на сторінці.")
+        return None
+    
+    parent_page_id = parent["page_id"]
+    print(f"Знайдено батьківську сторінку з ID: {parent_page_id}")
+
+    # Крок 2: Шукаємо сторінку "Execution" серед дочірніх елементів батьківської сторінки
+    url = f"https://api.notion.com/v1/blocks/{parent_page_id}/children"
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        print(f"Помилка отримання дочірніх елементів сторінки: {response.status_code} - {response.text}")
+        return None
+    
+    data = response.json()
+    print(f"Дочірні елементи батьківської сторінки: {data}")
+    for block in data["results"]:
+        if block["type"] == "child_page" and "Execution" in block["child_page"]["title"]:
+            execution_page_id = block["id"]
+            print(f"Знайдено сторінку Execution з ID: {execution_page_id}")
+            return fetch_databases_from_execution(execution_page_id, notion_token)
+    
+    print("Сторінку 'Execution' не знайдено на батьківській сторінці.")
     return None
 
 # Функція для отримання баз із сторінки "Execution"
@@ -43,6 +67,7 @@ def fetch_databases_from_execution(page_id, notion_token):
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         data = response.json()
+        print(f"Дочірні блоки сторінки Execution: {data}")
         relation_ids = {
             "Context": {}, "Test POI": {}, "Point A": {}, "Trigger": {}, "VC": {},
             "Entry model": {}, "Entry TF": {}, "Point B": {}, "SL Position": {}
@@ -51,6 +76,7 @@ def fetch_databases_from_execution(page_id, notion_token):
             if block["type"] == "child_database":
                 db_title = block["child_database"]["title"]
                 db_id = block["id"]
+                print(f"Знайдено базу: {db_title} з ID {db_id}")
                 if "Context" in db_title:
                     relation_ids["Context"] = fetch_relation_ids(db_id, notion_token)
                 elif "Test POI" in db_title:
@@ -61,16 +87,18 @@ def fetch_databases_from_execution(page_id, notion_token):
                     relation_ids["Trigger"] = fetch_relation_ids(db_id, notion_token)
                 elif "VC" in db_title:
                     relation_ids["VC"] = fetch_relation_ids(db_id, notion_token)
-                elif "Entry model" in db_title:
+                elif "Entry Models" in db_title:  # Змінено на "Entry Models" відповідно до вашої структури
                     relation_ids["Entry model"] = fetch_relation_ids(db_id, notion_token)
                 elif "Entry TF" in db_title:
                     relation_ids["Entry TF"] = fetch_relation_ids(db_id, notion_token)
                 elif "Point B" in db_title:
                     relation_ids["Point B"] = fetch_relation_ids(db_id, notion_token)
-                elif "SL Position" in db_title:
+                elif "Stop Loss position" in db_title:  # Змінено на "Stop Loss position"
                     relation_ids["SL Position"] = fetch_relation_ids(db_id, notion_token)
         return relation_ids
-    return None
+    else:
+        print(f"Помилка отримання баз із Execution: {response.status_code} - {response.text}")
+        return None
 
 # Функція для отримання ID записів із бази
 def fetch_relation_ids(database_id, notion_token):
@@ -83,13 +111,19 @@ def fetch_relation_ids(database_id, notion_token):
     response = requests.post(url, headers=headers)
     if response.status_code == 200:
         data = response.json()
+        print(f"Записи бази {database_id}: {data}")
         relation_ids = {}
         for result in data["results"]:
-            name = result["properties"]["Name"]["title"][0]["text"]["content"]
-            page_id = result["id"]
-            relation_ids[name] = page_id
+            name_prop = result["properties"].get("Name", {})
+            if name_prop.get("title"):
+                name = name_prop["title"][0]["text"]["content"]
+                page_id = result["id"]
+                relation_ids[name] = page_id
+                print(f"Додано запис: {name} -> {page_id}")
         return relation_ids
-    return None
+    else:
+        print(f"Помилка отримання записів із бази {database_id}: {response.status_code} - {response.text}")
+        return None
 
 # Початок роботи бота
 async def start(update, context):
@@ -121,11 +155,14 @@ async def start(update, context):
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
         else:
-            await update.message.reply_text('Помилка: не вдалося знайти бази в "Execution". Перевір ID.')
+            await update.message.reply_text('Помилка: не вдалося знайти сторінку "Execution" поруч із базою "Classification". Перевір правильність ID або структуру сторінки.')
     else:
         keyboard = [[InlineKeyboardButton("Додати трейд", callback_data='add_trade')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
+
+# Решта коду (handle_text, create_notion_page, button, main) залишається без змін
+# ... (вставте решту вашого коду сюди)
 
 # Обробка текстового вводу
 async def handle_text(update, context):
