@@ -242,9 +242,9 @@ async def button(update, context):
         return
     
     # Ініціалізація списків для мультивибору, якщо їх ще немає
-    if 'Trigger' not in user_data[auth_key]:
+    if 'Trigger' not in user_data[auth_key] or not isinstance(user_data[auth_key]['Trigger'], list):
         user_data[auth_key]['Trigger'] = []
-    if 'VC' not in user_data[auth_key]:
+    if 'VC' not in user_data[auth_key] or not isinstance(user_data[auth_key]['VC'], list):
         user_data[auth_key]['VC'] = []
 
     # Логіка повернення назад і мультивибору
@@ -332,7 +332,7 @@ async def button(update, context):
             [InlineKeyboardButton("Назад", callback_data='back_to_delivery')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger'])})", reply_markup=reply_markup)
+        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data.startswith('trigger_'):
         trigger_value = query.data.split('_')[1]
@@ -347,7 +347,7 @@ async def button(update, context):
             [InlineKeyboardButton("Назад", callback_data='back_to_pointa')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger'])})", reply_markup=reply_markup)
+        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'trigger_done':
         if not user_data[auth_key]['Trigger']:
@@ -361,7 +361,7 @@ async def button(update, context):
             [InlineKeyboardButton("Назад", callback_data='back_to_pointa')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC'])})", reply_markup=reply_markup)
+        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data.startswith('vc_'):
         vc_value = query.data.split('_')[1]
@@ -376,7 +376,7 @@ async def button(update, context):
             [InlineKeyboardButton("Назад", callback_data='back_to_trigger')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC'])})", reply_markup=reply_markup)
+        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'vc_done':
         if not user_data[auth_key]['VC']:
@@ -512,7 +512,7 @@ async def button(update, context):
             [InlineKeyboardButton("Назад", callback_data='back_to_pointa')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger'])})", reply_markup=reply_markup)
+        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'back_to_vc':
         keyboard = [
@@ -523,7 +523,7 @@ async def button(update, context):
             [InlineKeyboardButton("Назад", callback_data='back_to_trigger')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC'])})", reply_markup=reply_markup)
+        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'back_to_entrymodel':
         keyboard = [
@@ -669,7 +669,7 @@ async def button(update, context):
             [InlineKeyboardButton("Готово", callback_data='trigger_done')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger'])})", reply_markup=reply_markup)
+        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'edit_vc':
         user_data[auth_key]['VC'] = []  # Очищаємо попередні вибори
@@ -680,7 +680,7 @@ async def button(update, context):
             [InlineKeyboardButton("Готово", callback_data='vc_done')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC'])})", reply_markup=reply_markup)
+        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'edit_entrymodel':
         keyboard = [
