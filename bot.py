@@ -70,9 +70,10 @@ RELATION_IDS = {
 
 # Початок роботи бота
 async def start(update, context):
-    user_id = str(update.message.from_user.id)
+    user_id = str(update.message.from_user.id)  # Уже рядок, але для впевненості
     if user_id not in user_data or 'notion_token' not in user_data[user_id]:
-        auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}"
+        # Явно перетворюємо user_id у рядок у URL
+        auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={str(user_id)}"
         keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text('Спочатку авторизуйся в Notion:', reply_markup=reply_markup)
@@ -82,7 +83,6 @@ async def start(update, context):
         keyboard = [[InlineKeyboardButton("Додати трейд", callback_data='add_trade')]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
-
 # Обробка текстового вводу
 async def handle_text(update, context):
     user_id = str(update.message.from_user.id)
