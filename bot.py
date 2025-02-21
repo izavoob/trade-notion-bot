@@ -9,7 +9,7 @@ import heroku3
 # Налаштування логування
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.DEBUG  # Змінено на DEBUG для максимальної деталізації
 )
 logger = logging.getLogger(__name__)
 
@@ -25,16 +25,16 @@ logger.info(f"Initial user_data loaded from HEROKU_USER_DATA: {json.dumps(user_d
 
 # Функція для отримання баз із батьківської сторінки
 def fetch_databases_from_parent_page(page_id, notion_token):
-    logger.info(f"Fetching databases from parent page ID: {page_id}")
+    logger.debug(f"Starting fetch_databases_from_parent_page with page_id: {page_id}")
     url = f"https://api.notion.com/v1/blocks/{page_id}/children"
     headers = {
         "Authorization": f"Bearer {notion_token}",
         "Content-Type": "application/json",
         "Notion-Version": "2022-06-28"
     }
-    logger.debug(f"Requesting Notion API: {url} with headers: {headers}")
+    logger.debug(f"Notion API GET request to: {url} with headers: {headers}")
     response = requests.get(url, headers=headers)
-    logger.debug(f"Notion API response status: {response.status_code}, content: {response.text}")
+    logger.debug(f"Notion API response: status={response.status_code}, content={response.text}")
     
     if response.status_code != 200:
         logger.error(f"Failed to fetch children of page {page_id}: {response.status_code} - {response.text}")
@@ -47,6 +47,7 @@ def fetch_databases_from_parent_page(page_id, notion_token):
     execution_page_id = None
     
     for block in data.get("results", []):
+        logger.debug(f"Processing block: {json.dumps(block, indent=2)}")
         if block["type"] == "child_database" and "Classification" in block["child_database"]["title"]:
             classification_db_id = block["id"]
             logger.info(f"Found Classification database with ID: {classification_db_id}")
@@ -62,19 +63,20 @@ def fetch_databases_from_parent_page(page_id, notion_token):
         return None, None
     
     relation_ids = fetch_databases_from_execution(execution_page_id, notion_token)
+    logger.info(f"Returning classification_db_id: {classification_db_id}, relation_ids: {json.dumps(relation_ids, indent=2)}")
     return classification_db_id, relation_ids
 
 def fetch_databases_from_execution(page_id, notion_token):
-    logger.info(f"Fetching databases from Execution page ID: {page_id}")
+    logger.debug(f"Starting fetch_databases_from_execution with page_id: {page_id}")
     url = f"https://api.notion.com/v1/blocks/{page_id}/children"
     headers = {
         "Authorization": f"Bearer {notion_token}",
         "Content-Type": "application/json",
         "Notion-Version": "2022-06-28"
     }
-    logger.debug(f"Requesting Notion API: {url} with headers: {headers}")
+    logger.debug(f"Notion API GET request to: {url} with headers: {headers}")
     response = requests.get(url, headers=headers)
-    logger.debug(f"Notion API response status: {response.status_code}, content: {response.text}")
+    logger.debug(f"Notion API response: status={response.status_code}, content={response.text}")
     
     if response.status_code != 200:
         logger.error(f"Failed to fetch children of Execution page {page_id}: {response.status_code} - {response.text}")
@@ -88,6 +90,7 @@ def fetch_databases_from_execution(page_id, notion_token):
     }
     
     for block in data.get("results", []):
+        logger.debug(f"Processing block: {json.dumps(block, indent=2)}")
         if block["type"] == "child_database":
             db_title = block["child_database"]["title"]
             db_id = block["id"]
@@ -115,16 +118,16 @@ def fetch_databases_from_execution(page_id, notion_token):
     return relation_ids
 
 def fetch_relation_ids(database_id, notion_token):
-    logger.info(f"Fetching relation IDs from database ID: {database_id}")
+    logger.debug(f"Starting fetch_relation_ids with database_id: {database_id}")
     url = f"https://api.notion.com/v1/databases/{database_id}/query"
     headers = {
         "Authorization": f"Bearer {notion_token}",
         "Content-Type": "application/json",
         "Notion-Version": "2022-06-28"
     }
-    logger.debug(f"Requesting Notion API: {url} with headers: {headers}")
+    logger.debug(f"Notion API POST request to: {url} with headers: {headers}")
     response = requests.post(url, headers=headers)
-    logger.debug(f"Notion API response status: {response.status_code}, content: {response.text}")
+    logger.debug(f"Notion API response: status={response.status_code}, content={response.text}")
     
     if response.status_code != 200:
         logger.error(f"Failed to query database {database_id}: {response.status_code} - {response.text}")
@@ -135,6 +138,7 @@ def fetch_relation_ids(database_id, notion_token):
     relation_ids = {}
     
     for result in data.get("results", []):
+        logger.debug(f"Processing record: {json.dumps(result, indent=2)}")
         name_prop = result["properties"].get("Name", {})
         if name_prop.get("title") and name_prop["title"]:
             name = name_prop["title"][0]["text"]["content"]
@@ -160,7 +164,7 @@ async def start(update, context):
             "2. Авторизуйся нижче і введи ID батьківської сторінки 'A-B-C position Final Bot' (32 символи з URL)."
         )
         auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
-        logger.info(f"Generated Notion auth URL: {auth_url}")
+        logger.info(f"Generated Notion auth URL for user {user_id}: {auth_url}")
         keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(instructions, reply_markup=reply_markup)
@@ -225,26 +229,29 @@ async def handle_text(update, context):
                 await update.message.reply_text(f"Помилка: відсутні дані для {', '.join(missing_keys)}. Почни заново через 'Додати трейд'.")
             else:
                 logger.info(f"Attempting to create Notion page for user {user_id} with data: {json.dumps(user_data[auth_key], indent=2)}")
-                create_notion_page(auth_key)
-                await update.message.reply_text(format_summary(user_data[auth_key]) + "\nТрейд успішно додано!")
-                conn = heroku3.from_key(HEROKU_API_KEY)
-                heroku_app = conn.apps()['tradenotionbot-lg2']
-                heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-                logger.info(f"Trade added successfully for user {user_id}. Updated user_data: {json.dumps(user_data, indent=2)}")
-                del user_data[auth_key]['waiting_for_rr']
-                del user_data[auth_key]['Pair']
-                del user_data[auth_key]['Session']
-                del user_data[auth_key]['Context']
-                del user_data[auth_key]['Test POI']
-                del user_data[auth_key]['Delivery to POI']
-                del user_data[auth_key]['Point A']
-                del user_data[auth_key]['Trigger']
-                del user_data[auth_key]['VC']
-                del user_data[auth_key]['Entry model']
-                del user_data[auth_key]['Entry TF']
-                del user_data[auth_key]['Point B']
-                del user_data[auth_key]['SL Position']
-                del user_data[auth_key]['RR']
+                success = create_notion_page(auth_key)
+                if success:
+                    await update.message.reply_text(format_summary(user_data[auth_key]) + "\nТрейд успішно додано!")
+                    conn = heroku3.from_key(HEROKU_API_KEY)
+                    heroku_app = conn.apps()['tradenotionbot-lg2']
+                    heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+                    logger.info(f"Trade added successfully for user {user_id}. Updated user_data: {json.dumps(user_data, indent=2)}")
+                    del user_data[auth_key]['waiting_for_rr']
+                    del user_data[auth_key]['Pair']
+                    del user_data[auth_key]['Session']
+                    del user_data[auth_key]['Context']
+                    del user_data[auth_key]['Test POI']
+                    del user_data[auth_key]['Delivery to POI']
+                    del user_data[auth_key]['Point A']
+                    del user_data[auth_key]['Trigger']
+                    del user_data[auth_key]['VC']
+                    del user_data[auth_key]['Entry model']
+                    del user_data[auth_key]['Entry TF']
+                    del user_data[auth_key]['Point B']
+                    del user_data[auth_key]['SL Position']
+                    del user_data[auth_key]['RR']
+                else:
+                    await update.message.reply_text("Помилка: не вдалося додати трейд у Notion. Перевір логи.")
         except ValueError:
             logger.warning(f"Invalid RR input from user {user_id}: {rr_input}")
             await update.message.reply_text("Введи коректне число для RR (наприклад, 2.5):")
@@ -278,7 +285,7 @@ def format_summary(data):
 
 # Створення сторінки в Notion
 def create_notion_page(user_id):
-    logger.info(f"Creating Notion page for user {user_id}")
+    logger.debug(f"Starting create_notion_page for user {user_id}")
     url = 'https://api.notion.com/v1/pages'
     headers = {
         'Authorization': f'Bearer {user_data[user_id]["notion_token"]}',
@@ -314,12 +321,14 @@ def create_notion_page(user_id):
     
     logger.debug(f"Sending POST request to Notion API: {url} with headers: {headers}")
     response = requests.post(url, json=payload, headers=headers)
-    logger.debug(f"Notion API response status: {response.status_code}, content: {response.text}")
+    logger.debug(f"Notion API response: status={response.status_code}, content={response.text}")
     
-    if response.status_code != 200:
-        logger.error(f"Notion API error for user {user_id}: {response.status_code} - {response.text}")
-    else:
+    if response.status_code == 200:
         logger.info(f"Successfully created page for user {user_id}: {json.dumps(response.json(), indent=2)}")
+        return True
+    else:
+        logger.error(f"Notion API error for user {user_id}: {response.status_code} - {response.text}")
+        return False
 
 # Обробка кнопок
 async def button(update, context):
