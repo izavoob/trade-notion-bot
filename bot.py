@@ -16,7 +16,6 @@ user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
 
 # Функція для отримання батьківської сторінки бази "Classification" і пошуку "Execution"
 def fetch_execution_databases(database_id, notion_token):
-    # Крок 1: Отримуємо інформацію про базу "Classification"
     url = f"https://api.notion.com/v1/databases/{database_id}"
     headers = {
         "Authorization": f"Bearer {notion_token}",
@@ -38,7 +37,6 @@ def fetch_execution_databases(database_id, notion_token):
     parent_page_id = parent["page_id"]
     print(f"Знайдено батьківську сторінку з ID: {parent_page_id}")
 
-    # Крок 2: Шукаємо сторінку "Execution" серед дочірніх елементів батьківської сторінки
     url = f"https://api.notion.com/v1/blocks/{parent_page_id}/children"
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
@@ -56,7 +54,6 @@ def fetch_execution_databases(database_id, notion_token):
     print("Сторінку 'Execution' не знайдено на батьківській сторінці.")
     return None
 
-# Функція для отримання баз із сторінки "Execution"
 def fetch_databases_from_execution(page_id, notion_token):
     url = f"https://api.notion.com/v1/blocks/{page_id}/children"
     headers = {
@@ -65,42 +62,42 @@ def fetch_databases_from_execution(page_id, notion_token):
         "Notion-Version": "2022-06-28"
     }
     response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        data = response.json()
-        print(f"Дочірні блоки сторінки Execution: {data}")
-        relation_ids = {
-            "Context": {}, "Test POI": {}, "Point A": {}, "Trigger": {}, "VC": {},
-            "Entry model": {}, "Entry TF": {}, "Point B": {}, "SL Position": {}
-        }
-        for block in data["results"]:
-            if block["type"] == "child_database":
-                db_title = block["child_database"]["title"]
-                db_id = block["id"]
-                print(f"Знайдено базу: {db_title} з ID {db_id}")
-                if "Context" in db_title:
-                    relation_ids["Context"] = fetch_relation_ids(db_id, notion_token)
-                elif "Test POI" in db_title:
-                    relation_ids["Test POI"] = fetch_relation_ids(db_id, notion_token)
-                elif "Point A" in db_title:
-                    relation_ids["Point A"] = fetch_relation_ids(db_id, notion_token)
-                elif "Trigger" in db_title:
-                    relation_ids["Trigger"] = fetch_relation_ids(db_id, notion_token)
-                elif "VC" in db_title:
-                    relation_ids["VC"] = fetch_relation_ids(db_id, notion_token)
-                elif "Entry Models" in db_title:  # Змінено на "Entry Models" відповідно до вашої структури
-                    relation_ids["Entry model"] = fetch_relation_ids(db_id, notion_token)
-                elif "Entry TF" in db_title:
-                    relation_ids["Entry TF"] = fetch_relation_ids(db_id, notion_token)
-                elif "Point B" in db_title:
-                    relation_ids["Point B"] = fetch_relation_ids(db_id, notion_token)
-                elif "Stop Loss position" in db_title:  # Змінено на "Stop Loss position"
-                    relation_ids["SL Position"] = fetch_relation_ids(db_id, notion_token)
-        return relation_ids
-    else:
+    if response.status_code != 200:
         print(f"Помилка отримання баз із Execution: {response.status_code} - {response.text}")
         return None
+    
+    data = response.json()
+    print(f"Дочірні блоки сторінки Execution: {data}")
+    relation_ids = {
+        "Context": {}, "Test POI": {}, "Point A": {}, "Trigger": {}, "VC": {},
+        "Entry model": {}, "Entry TF": {}, "Point B": {}, "SL Position": {}
+    }
+    for block in data["results"]:
+        if block["type"] == "child_database":
+            db_title = block["child_database"]["title"]
+            db_id = block["id"]
+            print(f"Знайдено базу: {db_title} з ID {db_id}")
+            if "Context" in db_title:
+                relation_ids["Context"] = fetch_relation_ids(db_id, notion_token)
+            elif "Test POI" in db_title:
+                relation_ids["Test POI"] = fetch_relation_ids(db_id, notion_token)
+            elif "Point A" in db_title:
+                relation_ids["Point A"] = fetch_relation_ids(db_id, notion_token)
+            elif "Trigger" in db_title:
+                relation_ids["Trigger"] = fetch_relation_ids(db_id, notion_token)
+            elif "VC" in db_title:
+                relation_ids["VC"] = fetch_relation_ids(db_id, notion_token)
+            elif "Entry Models" in db_title:
+                relation_ids["Entry model"] = fetch_relation_ids(db_id, notion_token)
+            elif "Entry TF" in db_title:
+                relation_ids["Entry TF"] = fetch_relation_ids(db_id, notion_token)
+            elif "Point B" in db_title:
+                relation_ids["Point B"] = fetch_relation_ids(db_id, notion_token)
+            elif "Stop Loss position" in db_title:
+                relation_ids["SL Position"] = fetch_relation_ids(db_id, notion_token)
+    print(f"Заповнені relation_ids: {relation_ids}")
+    return relation_ids
 
-# Функція для отримання ID записів із бази
 def fetch_relation_ids(database_id, notion_token):
     url = f"https://api.notion.com/v1/databases/{database_id}/query"
     headers = {
@@ -109,21 +106,23 @@ def fetch_relation_ids(database_id, notion_token):
         "Notion-Version": "2022-06-28"
     }
     response = requests.post(url, headers=headers)
-    if response.status_code == 200:
-        data = response.json()
-        print(f"Записи бази {database_id}: {data}")
-        relation_ids = {}
-        for result in data["results"]:
-            name_prop = result["properties"].get("Name", {})
-            if name_prop.get("title"):
-                name = name_prop["title"][0]["text"]["content"]
-                page_id = result["id"]
-                relation_ids[name] = page_id
-                print(f"Додано запис: {name} -> {page_id}")
-        return relation_ids
-    else:
+    if response.status_code != 200:
         print(f"Помилка отримання записів із бази {database_id}: {response.status_code} - {response.text}")
-        return None
+        return {}
+    
+    data = response.json()
+    print(f"Записи бази {database_id}: {data}")
+    relation_ids = {}
+    for result in data["results"]:
+        name_prop = result["properties"].get("Name", {})
+        if name_prop.get("title") and name_prop["title"]:
+            name = name_prop["title"][0]["text"]["content"]
+            page_id = result["id"]
+            relation_ids[name] = page_id
+            print(f"Додано запис: {name} -> {page_id}")
+        else:
+            print(f"Запис у базі {database_id} не має властивості 'Name' або вона порожня: {result}")
+    return relation_ids
 
 # Початок роботи бота
 async def start(update, context):
@@ -250,22 +249,25 @@ def create_notion_page(user_id):
         'properties': {
             'Pair': {'select': {'name': user_data[user_id]['Pair']}},
             'Session': {'select': {'name': user_data[user_id]['Session']}},
-            'Context': {'relation': [{'id': relation_ids['Context'][user_data[user_id]['Context']]}]},
-            'Test POI': {'relation': [{'id': relation_ids['Test POI'][user_data[user_id]['Test POI']]}]},
+            'Context': {'relation': [{'id': relation_ids['Context'].get(user_data[user_id]['Context'], '')}] if 'Context' in relation_ids else {}},
+            'Test POI': {'relation': [{'id': relation_ids['Test POI'].get(user_data[user_id]['Test POI'], '')}] if 'Test POI' in relation_ids else {}},
             'Delivery to POI': {'select': {'name': user_data[user_id]['Delivery to POI']}},
-            'Point A': {'relation': [{'id': relation_ids['Point A'][user_data[user_id]['Point A']]}]},
-            'Trigger': {'relation': [{'id': relation_ids['Trigger'][user_data[user_id]['Trigger']]}]},
-            'VC': {'relation': [{'id': relation_ids['VC'][user_data[user_id]['VC']]}]},
-            'Entry Model': {'relation': [{'id': relation_ids['Entry model'][user_data[user_id]['Entry model']]}]},
-            'Entry TF': {'relation': [{'id': relation_ids['Entry TF'][user_data[user_id]['Entry TF']]}]},
-            'Point B': {'relation': [{'id': relation_ids['Point B'][user_data[user_id]['Point B']]}]},
-            'SL Position': {'relation': [{'id': relation_ids['SL Position'][user_data[user_id]['SL Position']]}]},
+            'Point A': {'relation': [{'id': relation_ids['Point A'].get(user_data[user_id]['Point A'], '')}] if 'Point A' in relation_ids else {}},
+            'Trigger': {'relation': [{'id': relation_ids['Trigger'].get(user_data[user_id]['Trigger'], '')}] if 'Trigger' in relation_ids else {}},
+            'VC': {'relation': [{'id': relation_ids['VC'].get(user_data[user_id]['VC'], '')}] if 'VC' in relation_ids else {}},
+            'Entry Model': {'relation': [{'id': relation_ids['Entry model'].get(user_data[user_id]['Entry model'], '')}] if 'Entry model' in relation_ids else {}},
+            'Entry TF': {'relation': [{'id': relation_ids['Entry TF'].get(user_data[user_id]['Entry TF'], '')}] if 'Entry TF' in relation_ids else {}},
+            'Point B': {'relation': [{'id': relation_ids['Point B'].get(user_data[user_id]['Point B'], '')}] if 'Point B' in relation_ids else {}},
+            'SL Position': {'relation': [{'id': relation_ids['SL Position'].get(user_data[user_id]['SL Position'], '')}] if 'SL Position' in relation_ids else {}},
             'RR': {'number': user_data[user_id]['RR']}
         }
     }
+    missing_relations = [key for key in relation_ids if not relation_ids[key]]
+    if missing_relations:
+        print(f"Помилка: відсутні записи для {missing_relations} у relation_ids: {relation_ids}")
     response = requests.post(url, json=payload, headers=headers)
     if response.status_code != 200:
-        print(f"Помилка Notion API для користувача {user_id}: {response.text}")
+        print(f"Помилка Notion API для користувача {user_id}: {response.status_code} - {response.text}")
 
 # Обробка кнопок
 async def button(update, context):
@@ -283,11 +285,12 @@ async def button(update, context):
     query = update.callback_query
     await query.answer()
 
-    # Перевіряємо, чи бот чекає на введення RR
+    # Якщо чекаємо RR, ігноруємо будь-які callback-запити і просто нагадуємо про текстовий ввід
     if user_data[auth_key].get('waiting_for_rr'):
-        await query.edit_message_text('Введи RR вручну (наприклад, 2.5):')
-        return  # Ігноруємо будь-які callback-запити, чекаємо текст у handle_text
+        await query.edit_message_text('Введи RR вручну (наприклад, 2.5):', reply_markup=None)  # Видаляємо кнопки
+        return
     
+    # Логіка для інших кроків
     if query.data == 'add_trade':
         keyboard = [
             [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
@@ -427,7 +430,7 @@ async def button(update, context):
         user_data[auth_key]['SL Position'] = query.data.split('_')[1]
         user_data[auth_key]['waiting_for_rr'] = True
         print(f"Оновлено SL Position і waiting_for_rr: {user_data[auth_key]}")
-        await query.edit_message_text('Введи RR вручну (наприклад, 2.5):')
+        await query.edit_message_text('Введи RR вручну (наприклад, 2.5):', reply_markup=None)  # Видаляємо кнопки
 
 # Головна функція для запуску бота
 def main():
