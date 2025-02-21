@@ -136,7 +136,6 @@ async def handle_text(update, context):
                 logger.error(f"Missing required keys for user {user_id}: {missing_keys}")
                 await update.message.reply_text(f"Помилка: відсутні дані для {', '.join(missing_keys)}. Почни заново через 'Додати трейд'.")
             else:
-                # Виводимо зібрану інформацію для перевірки
                 summary = format_summary(user_data[auth_key])
                 keyboard = [
                     [InlineKeyboardButton("Відправити", callback_data='submit_trade')],
@@ -334,7 +333,7 @@ async def button(update, context):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
-    elif query.data.startswith('trigger_'):
+    elif query.data.startswith('trigger_') and query.data != 'trigger_done':
         trigger_value = query.data.split('_')[1]
         if trigger_value in user_data[auth_key]['Trigger']:
             user_data[auth_key]['Trigger'].remove(trigger_value)
@@ -367,7 +366,7 @@ async def button(update, context):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
-    elif query.data.startswith('vc_'):
+    elif query.data.startswith('vc_') and query.data != 'vc_done':
         vc_value = query.data.split('_')[1]
         if vc_value in user_data[auth_key]['VC']:
             user_data[auth_key]['VC'].remove(vc_value)
