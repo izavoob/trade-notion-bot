@@ -89,17 +89,23 @@ async def start(update, context):
             heroku_app = conn.apps()['tradenotionbot-lg2']
             heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
             logger.info(f"Saved classification_db_id: {classification_db_id} to user_data for {auth_key}: {json.dumps(user_data[auth_key], indent=2)}")
-            keyboard = [[InlineKeyboardButton("Додати трейд", callback_data='add_trade')]]
+            keyboard = [
+                [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
+                [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
+            ]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
+            await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
         else:
             logger.error(f"Failed to fetch Classification DB ID for user {user_id}")
             await update.message.reply_text('Помилка: не вдалося знайти базу "Classification". Перевір правильність ID сторінки.')
     else:
-        keyboard = [[InlineKeyboardButton("Додати трейд", callback_data='add_trade')]]
+        keyboard = [
+            [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
+            [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text('Привіт! Натисни, щоб додати трейд:', reply_markup=reply_markup)
-        logger.info(f"User {user_id} ready to add trade. Current user_data: {json.dumps(user_data[auth_key], indent=2)}")
+        await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
+        logger.info(f"User {user_id} ready to choose action. Current user_data: {json.dumps(user_data[auth_key], indent=2)}")
 
 # Обробка текстового вводу
 async def handle_text(update, context):
@@ -565,30 +571,62 @@ async def button(update, context):
         await query.edit_message_text('Point B?', reply_markup=reply_markup)
 
     # Логіка підтвердження або редагування
-    elif query.data == 'submit_trade':
-        success = create_notion_page(auth_key)
-        if success:
-            await query.edit_message_text("Трейд успішно додано до Notion!")
-            conn = heroku3.from_key(HEROKU_API_KEY)
-            heroku_app = conn.apps()['tradenotionbot-lg2']
-            heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-            logger.info(f"Trade submitted successfully for user {user_id}. Updated user_data: {json.dumps(user_data, indent=2)}")
-            del user_data[auth_key]['waiting_for_rr']
-            del user_data[auth_key]['Pair']
-            del user_data[auth_key]['Session']
-            del user_data[auth_key]['Context']
-            del user_data[auth_key]['Test POI']
-            del user_data[auth_key]['Delivery to POI']
-            del user_data[auth_key]['Point A']
-            del user_data[auth_key]['Trigger']
-            del user_data[auth_key]['VC']
-            del user_data[auth_key]['Entry Model']
-            del user_data[auth_key]['Entry TF']
-            del user_data[auth_key]['Point B']
-            del user_data[auth_key]['SL Position']
-            del user_data[auth_key]['RR']
-        else:
-            await query.edit_message_text("Помилка при відправці трейду в Notion. Перевір логи.")
+   elif query.data == 'submit_trade':
+    success = create_notion_page(auth_key)
+    if success:
+        # Зберігаємо останній трейд перед очищенням
+        user_data[auth_key]['last_trade'] = {
+            'Pair': user_data[auth_key].get('Pair'),
+            'Session': user_data[auth_key].get('Session'),
+            'Context': user_data[auth_key].get('Context'),
+            'Test POI': user_data[auth_key].get('Test POI'),
+            'Delivery to POI': user_data[auth_key].get('Delivery to POI'),
+            'Point A': user_data[auth_key].get('Point A'),
+            'Trigger': user_data[auth_key].get('Trigger', []).copy(),  # Копія списку
+            'VC': user_data[auth_key].get('VC', []).copy(),  # Копія списку
+            'Entry Model': user_data[auth_key].get('Entry Model'),
+            'Entry TF': user_data[auth_key].get('Entry TF'),
+            'Point B': user_data[auth_key].get('Point B'),
+            'SL Position': user_data[auth_key].get('SL Position'),
+            'RR': user_data[auth_key].get('RR')
+        }
+        await query.edit_message_text("Трейд успішно додано до Notion!")
+        conn = heroku3.from_key(HEROKU_API_KEY)
+        heroku_app = conn.apps()['tradenotionbot-lg2']
+        heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+        logger.info(f"Trade submitted successfully for user {user_id}. Updated user_data: {json.dumps(user_data, indent=2)}")
+        # Очищаємо всі параметри для нового трейду
+        for key in ['waiting_for_rr', 'Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
+                    'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']:
+            if key in user_data[auth_key]:
+                del user_data[auth_key][key]
+        # Явно ініціалізуємо Trigger і VC як порожні списки
+        user_data[auth_key]['Trigger'] = []
+        user_data[auth_key]['VC'] = []
+        keyboard = [
+            [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
+            [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери дію:", reply_markup=reply_markup)
+    else:
+        await query.edit_message_text("Помилка при відправці трейду в Notion. Перевір логи.")
+
+    elif query.data == 'view_last_trade':
+    if 'last_trade' in user_data[auth_key] and user_data[auth_key]['last_trade']:
+        summary = format_summary(user_data[auth_key]['last_trade'])
+        keyboard = [
+            [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
+            [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(f"Останній трейд:\n{summary}\n\nВибери дію:", reply_markup=reply_markup)
+    else:
+        keyboard = [
+            [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text("Ще немає відправлених трейдів. Вибери дію:", reply_markup=reply_markup)
     
     elif query.data == 'edit_trade':
         keyboard = [
