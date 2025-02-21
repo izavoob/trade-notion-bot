@@ -24,7 +24,7 @@ RELATION_IDS = {
     },
     'Test POI': {
         '>50@ or FullFill': '1a084b079a828121874ef45d9b58ead8',
-        'Minimal': '1a084b079a828124882ce2ddf59e4c8d'
+        'Minimal': '1a184b079a82801aa510fde344303b9d'
     },
     'Point A': {
         'SNR': '1a084b079a82812e8f6fe33c1e19e95b',
