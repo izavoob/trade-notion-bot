@@ -26,16 +26,19 @@ def hello():
 def oauth_callback():
     code = request.args.get('code')
     user_id = request.args.get('state')
+    print(f"Отримано code: {code}, user_id: {user_id}")  # Дебаг
     if code and user_id:
         token_response = requests.post(
             'https://api.notion.com/v1/oauth/token',
             auth=(CLIENT_ID, CLIENT_SECRET),
             data={'grant_type': 'authorization_code', 'code': code, 'redirect_uri': REDIRECT_URI}
         ).json()
+        print(f"Notion відповідь: {token_response}")  # Дебаг
         if 'access_token' in token_response:
             user_data[user_id] = {'notion_token': token_response['access_token']}
             with open(USER_DATA_FILE, 'w') as f:
                 json.dump(user_data, f)
+            print(f"Збережено user_data: {user_data}")  # Дебаг
             return "Авторизація успішна! Повернись у Telegram і напиши /start."
     return "Помилка авторизації."
 
