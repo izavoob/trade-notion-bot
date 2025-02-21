@@ -71,6 +71,7 @@ RELATION_IDS = {
 # Початок роботи бота
 async def start(update, context):
     user_id = str(update.message.from_user.id)
+    print(f"Перевірка user_data перед /start: {user_data}")
     print(f"Тип user_id: {type(user_id)}, значення: {user_id}")  # Додаємо дебаг
     if user_id not in user_data or 'notion_token' not in user_data[user_id]:
         auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={str(user_id) + 'user'}"

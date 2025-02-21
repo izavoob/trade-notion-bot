@@ -28,7 +28,7 @@ def oauth_callback():
     user_id = request.args.get('state')
     print(f"Отримано code: {code}, user_id: {user_id}")  # Дебаг
     if code and user_id:
-        token_response = requests.post(
+        token_response = requests.post(d
             'https://api.notion.com/v1/oauth/token',
             auth=(CLIENT_ID, CLIENT_SECRET),
             data={'grant_type': 'authorization_code', 'code': code, 'redirect_uri': REDIRECT_URI}
