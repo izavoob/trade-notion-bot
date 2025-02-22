@@ -7,14 +7,12 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 import heroku3
 import asyncio
 
-# Налаштування логування
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.DEBUG
 )
 logger = logging.getLogger(__name__)
 
-# Конфігурація через змінні середовища
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CLIENT_ID = os.getenv('NOTION_CLIENT_ID')
 CLIENT_SECRET = os.getenv('NOTION_CLIENT_SECRET')
@@ -25,7 +23,6 @@ user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
 user_data_lock = asyncio.Lock()
 logger.info(f"Initial user_data loaded: {json.dumps(user_data, indent=2)}")
 
-# Функція для оновлення user_data з Heroku
 async def reload_user_data():
     global user_data
     try:
@@ -39,7 +36,6 @@ async def reload_user_data():
         logger.error(f"Error reloading user_data: {str(e)}")
         user_data = {}
 
-# Команда /start
 async def start(update, context):
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
@@ -68,8 +64,8 @@ async def start(update, context):
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
+            logger.info(f"Sent menu to user {user_id}")
 
-# Обробка кнопок
 async def button(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
@@ -77,11 +73,12 @@ async def button(update, context):
     logger.info(f"Button callback received from user {user_id}: {query.data}")
     
     await query.answer()
-    logger.debug(f"Reloading user_data for user {user_id}")
+    logger.debug(f"Before reload_user_data for user {user_id}")
     await reload_user_data()
-    logger.debug(f"User data after reload: {json.dumps(user_data.get(auth_key, {}), indent=2)}")
+    logger.debug(f"After reload_user_data for user {user_id}: {json.dumps(user_data.get(auth_key, {}), indent=2)}")
     
     async with user_data_lock:
+        logger.debug(f"Checking user_data for {auth_key}")
         if auth_key not in user_data:
             logger.warning(f"No user_data for {auth_key}")
             await query.edit_message_text("Спочатку авторизуйся через /start.")
@@ -94,9 +91,8 @@ async def button(update, context):
             logger.warning(f"No parent_page_id for {auth_key}")
             await query.edit_message_text("Спочатку введи ID сторінки через /start.")
             return
-        
-        logger.debug(f"User {user_id} passed all checks")
-    
+        logger.info(f"User {user_id} passed all checks")
+
     if query.data == 'add_trade':
         try:
             logger.info(f"Processing add_trade for user {user_id}")
@@ -113,10 +109,9 @@ async def button(update, context):
         except Exception as e:
             logger.error(f"Error in add_trade for user {user_id}: {str(e)}")
             await query.edit_message_text("Сталася помилка. Спробуй ще раз через /start.")
-    
     elif query.data == 'view_last_trade':
         logger.info(f"Processing view_last_trade for user {user_id}")
-        await query.edit_message_text("Функція перегляду останнього трейду ще не реалізована.")
+        await query.edit_message_text("Функція перегляду ще не реалізована.")
 
 def main():
     logger.info("Starting bot with TELEGRAM_TOKEN: [REDACTED]")
