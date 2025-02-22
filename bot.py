@@ -129,12 +129,21 @@ async def start(update, context):
             instructions = (
                 "Щоб використовувати бота:\n"
                 "1. Скопіюй сторінку за посиланням: https://www.notion.so/A-B-C-position-Final-Bot-1a084b079a8280d29d5ecc9316e02c5d\n"
-                "2. Авторизуйся нижче і введи ID батьківської сторінки 'A-B-C position Final Bot' (32 символи з URL)."
+                "2. Авторизуйся нижче і надай доступ до скопійованої сторінки.\n"
+                "3. Введи ID батьківської сторінки 'A-B-C position Final Bot' (32 символи з URL)."
             )
             auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
             keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
             reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Відправляємо текст інструкції
             await update.message.reply_text(instructions, reply_markup=reply_markup)
+            
+            # Відправляємо зображення (замініть 'PHOTO_FILE_ID' на реальний file_id зображення)
+            await context.bot.send_photo(
+                chat_id=update.message.chat_id,
+                photo='658463621'
+            )
         elif 'parent_page_id' not in user_data[auth_key]:
             await update.message.reply_text('Введи ID батьківської сторінки "A-B-C position Final Bot" (32 символи з URL):')
         elif 'classification_db_id' not in user_data[auth_key]:
@@ -617,7 +626,7 @@ async def button(update, context):
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
                 # Очищаємо параметри
                 for key in ['waiting_for_rr', 'Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
-                            'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']:
+                            ' Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']:
                     if key in user_data[auth_key]:
                         del user_data[auth_key][key]
                 user_data[auth_key]['Trigger'] = []
