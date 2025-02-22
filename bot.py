@@ -27,8 +27,8 @@ HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
 user_data_lock = asyncio.Lock()
 
-# Визначення станів
-START, PAIR, SESSION, CONTEXT, TEST_POI, DELIVERY, POINT_A, TRIGGER, VC, ENTRY_MODEL, ENTRY_TF, POINT_B, SL_POSITION, RR, SUMMARY = range(14)
+# Визначення станів (виправлено range(14) на range(15))
+START, PAIR, SESSION, CONTEXT, TEST_POI, DELIVERY, POINT_A, TRIGGER, VC, ENTRY_MODEL, ENTRY_TF, POINT_B, SL_POSITION, RR, SUMMARY = range(15)
 
 # Головне меню
 MAIN_MENU = ReplyKeyboardMarkup(
