@@ -2,7 +2,7 @@ import requests
 import json
 import os
 import logging
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Request
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 import heroku3
 import asyncio
@@ -30,6 +30,17 @@ except json.JSONDecodeError:
     user_data = {}
 user_data_lock = asyncio.Lock()
 logger.info(f"Initial user_data loaded: {json.dumps(user_data, indent=2)}")
+
+# Функція для збереження user_data в Heroku (викликається лише в ключових моментах)
+async def save_user_data_to_heroku():
+    async with user_data_lock:
+        try:
+            conn = heroku3.from_key(HEROKU_API_KEY)
+            heroku_app = conn.apps()['tradenotionbot-lg2']
+            heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+            logger.info("HEROKU_USER_DATA оновлено в Heroku.")
+        except Exception as e:
+            logger.error(f"Помилка оновлення HEROKU_USER_DATA: {str(e)}")
 
 # Функція для отримання ID бази "Classification" із батьківської сторінки
 def fetch_classification_db_id(page_id, notion_token):
@@ -146,9 +157,7 @@ async def start(update, context):
             classification_db_id = fetch_classification_db_id(user_data[auth_key]['parent_page_id'], user_data[auth_key]['notion_token'])
             if classification_db_id:
                 user_data[auth_key]['classification_db_id'] = classification_db_id
-                conn = heroku3.from_key(HEROKU_API_KEY)
-                heroku_app = conn.apps()['tradenotionbot-lg2']
-                heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+                await save_user_data_to_heroku()  # Зберігаємо лише тут
                 keyboard = [
                     [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
                     [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
@@ -178,9 +187,7 @@ async def handle_text(update, context):
             text = update.message.text
             if len(text) == 32:
                 user_data[auth_key]['parent_page_id'] = text
-                conn = heroku3.from_key(HEROKU_API_KEY)
-                heroku_app = conn.apps()['tradenotionbot-lg2']
-                heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+                await save_user_data_to_heroku()  # Зберігаємо лише тут
                 await update.message.reply_text('ID сторінки збережено! Напиши /start.')
             else:
                 await update.message.reply_text('Неправильний ID. Введи 32 символи з URL сторінки "A-B-C position Final Bot".')
@@ -247,12 +254,14 @@ async def button(update, context):
             await query.edit_message_text("Спочатку введи ID сторінки через /start.")
             return
         
+        logger.debug(f"Processing callback_data: {query.data}")
         if 'Trigger' not in user_data[auth_key] or not isinstance(user_data[auth_key]['Trigger'], list):
             user_data[auth_key]['Trigger'] = []
         if 'VC' not in user_data[auth_key] or not isinstance(user_data[auth_key]['VC'], list):
             user_data[auth_key]['VC'] = []
 
     if query.data == 'add_trade':
+        logger.info(f"User {user_id} pressed 'Add Trade'")
         keyboard = [
             [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
             [InlineKeyboardButton("GBPUSD", callback_data='pair_GBPUSD')],
@@ -366,7 +375,7 @@ async def button(update, context):
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
             [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
             [InlineKeyboardButton("Готово", callback_data='vc_done')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_pointa')]
+            [InlineKeyboardButton("Назад", callback_data='back_to_trigger')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
@@ -591,6 +600,7 @@ async def button(update, context):
                     'SL Position': user_data[auth_key].get('SL Position'),
                     'RR': user_data[auth_key].get('RR')
                 }
+                await save_user_data_to_heroku()  # Зберігаємо лише після завершення трейду
                 await query.edit_message_text("Трейд успішно додано до Notion!")
                 
                 await asyncio.sleep(5)
@@ -612,9 +622,6 @@ async def button(update, context):
                         text="Не вдалося отримати оцінку трейду. Перевір логи."
                     )
                 
-                conn = heroku3.from_key(HEROKU_API_KEY)
-                heroku_app = conn.apps()['tradenotionbot-lg2']
-                heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
                 for key in ['waiting_for_rr', 'Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
                             'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']:
                     if key in user_data[auth_key]:
@@ -808,12 +815,14 @@ async def button(update, context):
 def main():
     logger.info("Starting bot...")
     try:
-        application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(30).write_timeout(30).build()
+        # Налаштування Application з більшими таймаутами
+        application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(60).write_timeout(60).get_updates_request(Request(con_pool_size=8, connect_timeout=10, read_timeout=60)).build()
         application.add_handler(CommandHandler('start', start))
         application.add_handler(CallbackQueryHandler(button))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
         logger.info("Bot handlers registered. Starting polling...")
-        application.run_polling()
+        # Полінг із вказанням типів оновлень і таймаутом
+        application.run_polling(allowed_updates=["message", "callback_query"], timeout=60)
     except Exception as e:
         logger.critical(f"Bot crashed: {str(e)}", exc_info=True)
         raise
