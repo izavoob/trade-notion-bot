@@ -25,6 +25,14 @@ user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
 user_data_lock = asyncio.Lock()
 logger.info(f"Initial user_data loaded from HEROKU_USER_DATA: {json.dumps(user_data, indent=2)}")
 
+# Функція для оновлення user_data з Heroku
+async def reload_user_data():
+    global user_data
+    conn = heroku3.from_key(HEROKU_API_KEY)
+    heroku_app = conn.apps()['tradenotionbot-lg2']
+    user_data = json.loads(heroku_app.config().get('HEROKU_USER_DATA', '{}'))
+    logger.info(f"Reloaded user_data from Heroku: {json.dumps(user_data, indent=2)}")
+
 # Функція для отримання ID бази "Classification" із батьківської сторінки
 def fetch_classification_db_id(page_id, notion_token):
     logger.debug(f"Starting fetch_classification_db_id with page_id: {page_id}")
@@ -46,7 +54,7 @@ def fetch_classification_db_id(page_id, notion_token):
     logger.error("Classification database not found on parent page.")
     return None
 
-# Функція для створення сторінки в Notion (повертає ID сторінки)
+# Функція для створення сторінки в Notion
 def create_notion_page(user_id):
     logger.debug(f"Starting create_notion_page for user {user_id}")
     url = 'https://api.notion.com/v1/pages'
@@ -105,8 +113,6 @@ def fetch_page_properties(page_id, notion_token):
     
     data = response.json()
     properties = data.get('properties', {})
-    
-    # Витягуємо Score (formula як number), Trade Class (formula як string), Offer Risk (formula як number)
     score = properties.get('Score', {}).get('formula', {}).get('number', None)
     trade_class = properties.get('Trade Class', {}).get('formula', {}).get('string', None)
     offer_risk = properties.get('Offer Risk', {}).get('formula', {}).get('number', None)
@@ -118,7 +124,7 @@ def fetch_page_properties(page_id, notion_token):
         'Offer Risk': offer_risk
     }
 
-# Нова функція для рестарта бота
+# Команда /restart
 async def restart(update, context):
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
@@ -126,14 +132,12 @@ async def restart(update, context):
     
     async with user_data_lock:
         if auth_key in user_data:
-            # Зберігаємо лише user_id (auth_key), але очищаємо всі інші дані
             if 'notion_token' in user_data[auth_key]:
                 del user_data[auth_key]['notion_token']
             if 'parent_page_id' in user_data[auth_key]:
                 del user_data[auth_key]['parent_page_id']
             if 'classification_db_id' in user_data[auth_key]:
                 del user_data[auth_key]['classification_db_id']
-            # Очищаємо тимчасові дані
             for key in ['waiting_for_rr', 'Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
                         'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR', 'last_trade']:
                 if key in user_data[auth_key]:
@@ -141,13 +145,11 @@ async def restart(update, context):
             user_data[auth_key]['Trigger'] = []
             user_data[auth_key]['VC'] = []
             
-            # Зберігаємо оновлені дані в Heroku
             conn = heroku3.from_key(HEROKU_API_KEY)
             heroku_app = conn.apps()['tradenotionbot-lg2']
             heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
             logger.info(f"User data cleared for {user_id}, keeping user_id. Restarting...")
             
-            # Повертаємо користувача до початкових інструкцій
             instructions = (
                 "Щоб використовувати бота:\n"
                 "1. Скопіюй сторінку за посиланням: https://www.notion.so/A-B-C-position-Final-Bot-1a084b079a8280d29d5ecc9316e02c5d\n"
@@ -166,11 +168,13 @@ async def restart(update, context):
         else:
             await update.message.reply_text("Ви ще не авторизовані. Почніть із /start.")
 
-# Початок роботи бота
+# Команда /start
 async def start(update, context):
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
     logger.info(f"Start command received from user {user_id}")
+    
+    await reload_user_data()  # Перезавантажуємо user_data з Heroku
     
     async with user_data_lock:
         if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
@@ -219,6 +223,8 @@ async def handle_text(update, context):
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
     logger.info(f"Text input received from user {user_id}: {update.message.text}")
+    
+    await reload_user_data()  # Перезавантажуємо user_data
     
     async with user_data_lock:
         if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
@@ -288,6 +294,7 @@ async def button(update, context):
     logger.info(f"Button callback received from user {user_id}: {query.data}")
     
     await query.answer()
+    await reload_user_data()  # Перезавантажуємо user_data перед обробкою
     
     async with user_data_lock:
         if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
@@ -303,15 +310,20 @@ async def button(update, context):
             user_data[auth_key]['VC'] = []
 
     if query.data == 'add_trade':
-        keyboard = [
-            [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
-            [InlineKeyboardButton("GBPUSD", callback_data='pair_GBPUSD')],
-            [InlineKeyboardButton("USDJPY", callback_data='pair_USDJPY')],
-            [InlineKeyboardButton("XAUUSD", callback_data='pair_XAUUSD')],
-            [InlineKeyboardButton("GER40", callback_data='pair_GER40')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Pair?', reply_markup=reply_markup)
+        try:
+            logger.info(f"Processing add_trade for user {user_id}, user_data: {json.dumps(user_data.get(auth_key, {}), indent=2)}")
+            keyboard = [
+                [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
+                [InlineKeyboardButton("GBPUSD", callback_data='pair_GBPUSD')],
+                [InlineKeyboardButton("USDJPY", callback_data='pair_USDJPY')],
+                [InlineKeyboardButton("XAUUSD", callback_data='pair_XAUUSD')],
+                [InlineKeyboardButton("GER40", callback_data='pair_GER40')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text('Pair?', reply_markup=reply_markup)
+        except Exception as e:
+            logger.error(f"Error in add_trade: {str(e)}")
+            await query.edit_message_text("Сталася помилка. Спробуй ще раз через /start.")
     
     elif query.data.startswith('pair_'):
         async with user_data_lock:
@@ -621,12 +633,10 @@ async def button(update, context):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Point B?', reply_markup=reply_markup)
 
-    # Оновлена логіка підтвердження трейду
     elif query.data == 'submit_trade':
         async with user_data_lock:
             page_id = create_notion_page(auth_key)
             if page_id:
-                # Зберігаємо останній трейд перед очищенням
                 user_data[auth_key]['last_trade'] = {
                     'Pair': user_data[auth_key].get('Pair'),
                     'Session': user_data[auth_key].get('Session'),
@@ -642,13 +652,10 @@ async def button(update, context):
                     'SL Position': user_data[auth_key].get('SL Position'),
                     'RR': user_data[auth_key].get('RR')
                 }
-                # Відправляємо перше повідомлення
                 await query.edit_message_text("Трейд успішно додано до Notion!")
                 
-                # Затримка 5 секунд для обробки формул у Notion
                 await asyncio.sleep(5)
                 
-                # Отримуємо властивості сторінки
                 properties = fetch_page_properties(page_id, user_data[auth_key]['notion_token'])
                 if properties:
                     score = properties['Score'] if properties['Score'] is not None else "Немає даних"
@@ -669,7 +676,6 @@ async def button(update, context):
                 conn = heroku3.from_key(HEROKU_API_KEY)
                 heroku_app = conn.apps()['tradenotionbot-lg2']
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-                # Очищаємо параметри
                 for key in ['waiting_for_rr', 'Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
                             'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']:
                     if key in user_data[auth_key]:
@@ -734,7 +740,6 @@ async def button(update, context):
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(f"{summary}\n\nПеревір дані. Якщо все правильно, натисни 'Відправити'. Якщо щось не так, натисни 'Змінити'.", reply_markup=reply_markup)
 
-    # Логіка редагування
     elif query.data == 'edit_pair':
         keyboard = [
             [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
@@ -864,7 +869,7 @@ def main():
     logger.info("Starting bot with TELEGRAM_TOKEN: [REDACTED]")
     application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(30).write_timeout(30).build()
     application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('restart', restart))  # Додаємо команду /restart
+    application.add_handler(CommandHandler('restart', restart))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     logger.info("Bot handlers registered. Starting polling...")

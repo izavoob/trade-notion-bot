@@ -1,9 +1,10 @@
 import os
 import json
 import requests
-import heroku3
 from flask import Flask, request
-from threading import Lock
+from asyncio import Lock as AsyncLock
+from hypercorn.config import Config
+from hypercorn.asyncio import serve
 
 app = Flask(__name__)
 
@@ -14,14 +15,14 @@ HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 
 # Завантажуємо user_data із змінної Heroku
 user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
-user_data_lock = Lock()  # Додаємо блокування для синхронізації
+user_data_lock = AsyncLock()  # Використовуємо asyncio.Lock для асинхронного доступу
 
 @app.route('/')
-def hello():
+async def hello():
     return "Бот працює! Версія 2"
 
 @app.route('/callback', methods=['GET'])
-def oauth_callback():
+async def oauth_callback():
     code = request.args.get('code')
     user_id = request.args.get('state')
     print(f"Отримано code: {code}, user_id: {user_id}")
@@ -33,9 +34,10 @@ def oauth_callback():
         ).json()
         print(f"Notion відповідь: {token_response}")
         if 'access_token' in token_response:
-            with user_data_lock:  # Синхронізований доступ до user_data
+            async with user_data_lock:  # Асинхронне блокування
                 user_data[user_id] = {'notion_token': token_response['access_token']}
                 # Оновлюємо HEROKU_USER_DATA через Heroku API
+                import heroku3
                 conn = heroku3.from_key(HEROKU_API_KEY)
                 heroku_app = conn.apps()['tradenotionbot-lg2']
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
@@ -44,5 +46,7 @@ def oauth_callback():
     return "Помилка авторизації."
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    import asyncio
+    config = Config()
+    config.bind = [f"0.0.0.0:{int(os.environ.get('PORT', 5000))}"]
+    asyncio.run(serve(app, config))

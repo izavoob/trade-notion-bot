@@ -1,5 +1,5 @@
 python-telegram-bot
 requests
 flask
-gunicorn
+hypercorn
 heroku3
