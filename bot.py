@@ -47,7 +47,33 @@ def fetch_classification_db_id(page_id, notion_token):
     logger.error("Classification database not found on parent page.")
     return None
 
-# Функція для створення сторінки в Notion із датою та назвою "Trade"
+# Функція для отримання максимального значення "Num" із бази
+def get_max_num(classification_db_id, notion_token):
+    logger.debug(f"Fetching max Num from database {classification_db_id}")
+    url = f"https://api.notion.com/v1/databases/{classification_db_id}/query"
+    headers = {
+        "Authorization": f"Bearer {notion_token}",
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28"
+    }
+    payload = {
+        "sorts": [{"property": "Num", "direction": "descending"}],
+        "page_size": 1  # Беремо лише останній запис із найбільшим Num
+    }
+    response = requests.post(url, json=payload, headers=headers)
+    if response.status_code != 200:
+        logger.error(f"Failed to fetch max Num: {response.status_code} - {response.text}")
+        return 0  # Якщо помилка, починаємо з 1
+    data = response.json()
+    results = data.get("results", [])
+    if results:
+        max_num = results[0]["properties"].get("Num", {}).get("number", 0)
+        logger.info(f"Max Num found: {max_num}")
+        return max_num
+    logger.info("No trades found, starting Num from 1")
+    return 0  # Якщо база порожня, починаємо з 1
+
+# Функція для створення сторінки в Notion із датою, назвою "Trade" і порядковим номером "Num"
 def create_notion_page(user_id):
     logger.debug(f"Starting create_notion_page for user {user_id}")
     url = 'https://api.notion.com/v1/pages'
@@ -60,11 +86,15 @@ def create_notion_page(user_id):
     trigger_values = user_data[user_id].get('Trigger', [])
     vc_values = user_data[user_id].get('VC', [])
     current_date = datetime.now().strftime("%Y-%m-%d")  # Формат ISO 8601: 2025-02-22
+    max_num = get_max_num(user_data[user_id]['classification_db_id'], user_data[user_id]["notion_token"])
+    new_num = max_num + 1  # Новий порядковий номер
+    
     payload = {
         'parent': {'database_id': user_data[user_id]['classification_db_id']},
         'properties': {
-            'Name': {'title': [{'text': {'content': 'Trade'}}]},  # Назва "Trade"
-            'Date': {'date': {'start': current_date}},  # Додаємо дату у форматі ISO 8601
+            'Title': {'title': [{'text': {'content': 'Trade'}}]},  # Припускаємо, що колонка називається "Title"
+            'Num': {'number': new_num},  # Додаємо порядковий номер
+            'Date': {'date': {'start': current_date}},
             'Pair': {'select': {'name': user_data[user_id]['Pair']}},
             'Session': {'select': {'name': user_data[user_id]['Session']}},
             'Context': {'select': {'name': user_data[user_id]['Context']}},
@@ -87,11 +117,11 @@ def create_notion_page(user_id):
     
     if response.status_code == 200:
         page_id = response.json()['id']
-        logger.info(f"Successfully created page for user {user_id} with ID: {page_id}")
-        return page_id
+        logger.info(f"Successfully created page for user {user_id} with page_id: {page_id}, Num: {new_num}")
+        return page_id, new_num
     else:
         logger.error(f"Notion API error for user {user_id}: {response.status_code} - {response.text}")
-        return None
+        return None, None
 
 # Функція для отримання властивостей сторінки з Notion
 def fetch_page_properties(page_id, notion_token):
@@ -113,9 +143,11 @@ def fetch_page_properties(page_id, notion_token):
     score = properties.get('Score', {}).get('formula', {}).get('number', None)
     trade_class = properties.get('Trade Class', {}).get('formula', {}).get('string', None)
     offer_risk = properties.get('Offer Risk', {}).get('formula', {}).get('number', None)
+    trade_num = properties.get('Num', {}).get('number', None)  # Отримуємо "Num" як число
     
-    logger.info(f"Retrieved properties - Score: {score}, Trade Class: {trade_class}, Offer Risk: {offer_risk}")
+    logger.info(f"Retrieved properties - Num: {trade_num}, Score: {score}, Trade Class: {trade_class}, Offer Risk: {offer_risk}")
     return {
+        'Num': trade_num,
         'Score': score,
         'Trade Class': trade_class,
         'Offer Risk': offer_risk
@@ -145,7 +177,7 @@ def fetch_last_5_trades(classification_db_id, notion_token):
         properties = fetch_page_properties(page_id, notion_token)
         if properties:
             trades.append({
-                "id": page_id,
+                "id": properties["Num"],  # Використовуємо "Num" як ID
                 "Score": properties["Score"],
                 "Trade Class": properties["Trade Class"],
                 "Offer Risk": properties["Offer Risk"]
@@ -608,10 +640,10 @@ async def button(update, context):
     # Логіка підтвердження трейду
     elif query.data == 'submit_trade':
         async with user_data_lock:
-            page_id = create_notion_page(auth_key)
+            page_id, trade_num = create_notion_page(auth_key)
             if page_id:
                 user_data[auth_key]['last_trade'] = {
-                    'id': page_id,
+                    'id': trade_num,  # Зберігаємо trade_num як ID
                     'Pair': user_data[auth_key].get('Pair'),
                     'Session': user_data[auth_key].get('Session'),
                     'Context': user_data[auth_key].get('Context'),
@@ -629,7 +661,7 @@ async def button(update, context):
                 if 'last_trades' not in user_data[auth_key]:
                     user_data[auth_key]['last_trades'] = []
                 user_data[auth_key]['last_trades'].insert(0, {
-                    'id': page_id,
+                    'id': trade_num,  # Зберігаємо trade_num як ID
                     'properties': fetch_page_properties(page_id, user_data[auth_key]['notion_token'])
                 })
                 if len(user_data[auth_key]['last_trades']) > 5:
@@ -644,11 +676,11 @@ async def button(update, context):
                     score = properties['Score'] if properties['Score'] is not None else "Немає даних"
                     trade_class = properties['Trade Class'] if properties['Trade Class'] is not None else "Немає даних"
                     offer_risk = properties['Offer Risk'] if properties['Offer Risk'] is not None else "Немає даних"
-                    display_date = datetime.now().strftime("%B %d, %Y")  # Для відображення в Telegram
+                    display_date = datetime.now().strftime("%B %d, %Y")
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,
-                        text=f"ID трейду: {page_id}\n"
-                             f"Дата: {display_date}\n"  # Додаємо дату для користувача
+                        text=f"ID трейду: {trade_num}\n"  # Використовуємо trade_num
+                             f"Дата: {display_date}\n"
                              f"Оцінка вашого трейду: {score}\n"
                              f"Категорія трейду: {trade_class}\n"
                              f"Рекомендований ризик: {offer_risk}"
@@ -657,7 +689,7 @@ async def button(update, context):
                     display_date = datetime.now().strftime("%B %d, %Y")
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,
-                        text=f"ID трейду: {page_id}\n"
+                        text=f"ID трейду: {trade_num}\n"  # Використовуємо trade_num
                              f"Дата: {display_date}\n"
                              f"Не вдалося отримати оцінку трейду. Перевір логи."
                     )
@@ -714,8 +746,9 @@ async def button(update, context):
                     score = trade['Score'] if trade['Score'] is not None else "Немає даних"
                     trade_class = trade['Trade Class'] if trade['Trade Class'] is not None else "Немає даних"
                     offer_risk = trade['Offer Risk'] if trade['Offer Risk'] is not None else "Немає даних"
+                    trade_num = trade['id'] if trade['id'] is not None else "Немає даних"
                     message += (
-                        f"ID трейду: {trade['id']}\n"
+                        f"ID трейду: {trade_num}\n"  # Використовуємо trade_num
                         f"Оцінка вашого трейду: {score}\n"
                         f"Категорія трейду: {trade_class}\n"
                         f"Рекомендований ризик: {offer_risk}\n\n"
