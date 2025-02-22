@@ -1,5 +1,1 @@
 python-telegram-bot
-requests
-flask[async]
-hypercorn
-heroku3
