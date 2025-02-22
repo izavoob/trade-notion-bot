@@ -143,7 +143,9 @@ def fetch_page_properties(page_id, notion_token):
     
     num = properties.get('Num', {}).get('number', "Немає даних")
     date_property = properties.get('Date', {})
-    date = date_property.get('date', {}).get('start', "Немає даних") if isinstance(date_property, dict) else "Немає даних"
+    date = date_property.get('date', "Немає даних") if isinstance(date_property, dict) else "Немає даних"
+    if isinstance(date, dict):  # Якщо 'date' повертає словник (наприклад, {"start": "2025-02-22"})
+        date = date.get('start', "Немає даних")
     score = properties.get('Score', {}).get('formula', {}).get('number', "Немає даних")
     trade_class = properties.get('Trade Class', {}).get('formula', {}).get('string', "Немає даних")
     offer_risk = properties.get('Offer Risk', {}).get('formula', {}).get('number', "Немає даних")
