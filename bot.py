@@ -38,6 +38,25 @@ MAIN_MENU = ReplyKeyboardMarkup(
     one_time_keyboard=False
 )
 
+# Меню з кнопками "Назад" і "Скасувати"
+BACK_CANCEL_MENU = ReplyKeyboardMarkup(
+    [
+        ["Назад", "Скасувати"]
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=False
+)
+
+# Меню з кнопками "Назад", "Скасувати" і "Готово" (для Trigger і VC)
+BACK_CANCEL_DONE_MENU = ReplyKeyboardMarkup(
+    [
+        ["Назад", "Скасувати"],
+        ["Готово"]
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=False
+)
+
 # Функція для отримання ID бази "Classification" із батьківської сторінки
 def fetch_classification_db_id(page_id, notion_token):
     logger.debug(f"Starting fetch_classification_db_id with page_id: {page_id}")
@@ -337,6 +356,15 @@ async def handle_text(update, context):
             keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text("Натисни для повторної авторизації:", reply_markup=reply_markup)
+        # Обробка кнопок "Назад" і "Скасувати" із меню
+        elif text == "Скасувати" and 'Pair' in user_data[auth_key]:
+            for key in ['Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
+                        'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR', 'waiting_for_rr']:
+                if key in user_data[auth_key]:
+                    del user_data[auth_key][key]
+            user_data[auth_key]['Trigger'] = []
+            user_data[auth_key]['VC'] = []
+            await update.message.reply_text("Скасовано.", reply_markup=MAIN_MENU)
         elif 'waiting_for_rr' in user_data[auth_key]:
             try:
                 rr = float(text)
@@ -411,11 +439,11 @@ async def button(update, context):
             [InlineKeyboardButton("Frankfurt", callback_data='session_Frankfurt')],
             [InlineKeyboardButton("London", callback_data='session_London')],
             [InlineKeyboardButton("Out of OTT", callback_data='session_Out of OTT')],
-            [InlineKeyboardButton("New York", callback_data='session_New York')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_start')]
+            [InlineKeyboardButton("New York", callback_data='session_New York')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Session?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Session?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('session_'):
         async with user_data_lock:
@@ -423,33 +451,33 @@ async def button(update, context):
         keyboard = [
             [InlineKeyboardButton("By Context", callback_data='context_By Context')],
             [InlineKeyboardButton("Against Context", callback_data='context_Against Context')],
-            [InlineKeyboardButton("Neutral Context", callback_data='context_Neutral Context')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_pair')]
+            [InlineKeyboardButton("Neutral Context", callback_data='context_Neutral Context')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Context?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Context?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('context_'):
         async with user_data_lock:
             user_data[auth_key]['Context'] = query.data.split('_')[1]
         keyboard = [
             [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
-            [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_session')]
+            [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Test POI?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Test POI?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('testpoi_'):
         async with user_data_lock:
             user_data[auth_key]['Test POI'] = query.data.split('_')[1]
         keyboard = [
             [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
-            [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_context')]
+            [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Delivery to POI?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('delivery_'):
         async with user_data_lock:
@@ -458,11 +486,11 @@ async def button(update, context):
             [InlineKeyboardButton("Fractal Raid", callback_data='pointa_Fractal Raid')],
             [InlineKeyboardButton("RB", callback_data='pointa_RB')],
             [InlineKeyboardButton("FVG", callback_data='pointa_FVG')],
-            [InlineKeyboardButton("SNR", callback_data='pointa_SNR')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_testpoi')]
+            [InlineKeyboardButton("SNR", callback_data='pointa_SNR')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Point A?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Point A?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('pointa_'):
         async with user_data_lock:
@@ -471,12 +499,13 @@ async def button(update, context):
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
-            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')],
-            [InlineKeyboardButton("Готово", callback_data='trigger_done')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_delivery')]
+            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, 
+                                       text=f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", 
+                                       reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_DONE_MENU)
     
     elif query.data.startswith('trigger_') and query.data != 'trigger_done':
         trigger_value = query.data.split('_')[1]
@@ -488,12 +517,13 @@ async def button(update, context):
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
-            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')],
-            [InlineKeyboardButton("Готово", callback_data='trigger_done')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_pointa')]
+            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, 
+                                       text=f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", 
+                                       reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_DONE_MENU)
     
     elif query.data == 'trigger_done':
         async with user_data_lock:
@@ -504,12 +534,13 @@ async def button(update, context):
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
-            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
-            [InlineKeyboardButton("Готово", callback_data='vc_done')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_pointa')]
+            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, 
+                                       text=f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", 
+                                       reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_DONE_MENU)
     
     elif query.data.startswith('vc_') and query.data != 'vc_done':
         vc_value = query.data.split('_')[1]
@@ -521,12 +552,13 @@ async def button(update, context):
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
-            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
-            [InlineKeyboardButton("Готово", callback_data='vc_done')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_trigger')]
+            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, 
+                                       text=f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", 
+                                       reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_DONE_MENU)
     
     elif query.data == 'vc_done':
         async with user_data_lock:
@@ -537,11 +569,11 @@ async def button(update, context):
             [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
             [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
             [InlineKeyboardButton("SNR", callback_data='entrymodel_SNR')],
-            [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_vc')]
+            [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Entry Model?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('entrymodel_'):
         async with user_data_lock:
@@ -551,22 +583,22 @@ async def button(update, context):
             [InlineKeyboardButton("5m", callback_data='entrytf_5m')],
             [InlineKeyboardButton("15m", callback_data='entrytf_15m')],
             [InlineKeyboardButton("1H/30m", callback_data='entrytf_1H/30m')],
-            [InlineKeyboardButton("4H", callback_data='entrytf_4H')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_vc')]
+            [InlineKeyboardButton("4H", callback_data='entrytf_4H')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Entry TF?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Entry TF?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('entrytf_'):
         async with user_data_lock:
             user_data[auth_key]['Entry TF'] = query.data.split('_')[1]
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='pointb_Fractal Swing')],
-            [InlineKeyboardButton("FVG", callback_data='pointb_FVG')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_entrymodel')]
+            [InlineKeyboardButton("FVG", callback_data='pointb_FVG')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Point B?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Point B?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('pointb_'):
         async with user_data_lock:
@@ -574,24 +606,33 @@ async def button(update, context):
         keyboard = [
             [InlineKeyboardButton("LTF/Lunch Manipulation", callback_data='slposition_LTF/Lunch Manipulation')],
             [InlineKeyboardButton("1H/30m Raid", callback_data='slposition_1H/30m Raid')],
-            [InlineKeyboardButton("4H Raid", callback_data='slposition_4H Raid')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_entrytf')]
+            [InlineKeyboardButton("4H Raid", callback_data='slposition_4H Raid')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('SL Position?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='SL Position?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('slposition_'):
         async with user_data_lock:
             user_data[auth_key]['SL Position'] = query.data.split('_')[1]
             user_data[auth_key]['waiting_for_rr'] = True
-        await query.edit_message_text('Введи RR вручну (наприклад, 2.5):')
-        await context.bot.send_message(chat_id=query.message.chat_id, text='Введи число:', reply_markup=ReplyKeyboardRemove())
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):', reply_markup=ReplyKeyboardRemove())
 
     # Логіка повернення назад
     elif query.data == 'back_to_start':
+        async with user_data_lock:
+            for key in ['Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
+                        'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR', 'waiting_for_rr']:
+                if key in user_data[auth_key]:
+                    del user_data[auth_key][key]
+            user_data[auth_key]['Trigger'] = []
+            user_data[auth_key]['VC'] = []
         await query.edit_message_text('Привіт! Вибери дію:', reply_markup=MAIN_MENU)
     
     elif query.data == 'back_to_pair':
+        async with user_data_lock:
+            if 'Session' in user_data[auth_key]:
+                del user_data[auth_key]['Session']
         keyboard = [
             [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
             [InlineKeyboardButton("GBPUSD", callback_data='pair_GBPUSD')],
@@ -600,112 +641,145 @@ async def button(update, context):
             [InlineKeyboardButton("GER40", callback_data='pair_GER40')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Pair?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Pair?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'back_to_session':
+        async with user_data_lock:
+            if 'Context' in user_data[auth_key]:
+                del user_data[auth_key]['Context']
         keyboard = [
             [InlineKeyboardButton("Asia", callback_data='session_Asia')],
             [InlineKeyboardButton("Frankfurt", callback_data='session_Frankfurt')],
             [InlineKeyboardButton("London", callback_data='session_London')],
             [InlineKeyboardButton("Out of OTT", callback_data='session_Out of OTT')],
-            [InlineKeyboardButton("New York", callback_data='session_New York')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_pair')]
+            [InlineKeyboardButton("New York", callback_data='session_New York')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Session?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Session?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'back_to_context':
+        async with user_data_lock:
+            if 'Test POI' in user_data[auth_key]:
+                del user_data[auth_key]['Test POI']
         keyboard = [
             [InlineKeyboardButton("By Context", callback_data='context_By Context')],
             [InlineKeyboardButton("Against Context", callback_data='context_Against Context')],
-            [InlineKeyboardButton("Neutral Context", callback_data='context_Neutral Context')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_session')]
+            [InlineKeyboardButton("Neutral Context", callback_data='context_Neutral Context')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Context?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Context?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'back_to_testpoi':
+        async with user_data_lock:
+            if 'Delivery to POI' in user_data[auth_key]:
+                del user_data[auth_key]['Delivery to POI']
         keyboard = [
             [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
-            [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_context')]
+            [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Test POI?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Test POI?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'back_to_delivery':
+        async with user_data_lock:
+            if 'Point A' in user_data[auth_key]:
+                del user_data[auth_key]['Point A']
         keyboard = [
             [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
-            [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_testpoi')]
+            [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Delivery to POI?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'back_to_pointa':
+        async with user_data_lock:
+            if 'Trigger' in user_data[auth_key]:
+                del user_data[auth_key]['Trigger']
         keyboard = [
             [InlineKeyboardButton("Fractal Raid", callback_data='pointa_Fractal Raid')],
             [InlineKeyboardButton("RB", callback_data='pointa_RB')],
             [InlineKeyboardButton("FVG", callback_data='pointa_FVG')],
-            [InlineKeyboardButton("SNR", callback_data='pointa_SNR')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_delivery')]
+            [InlineKeyboardButton("SNR", callback_data='pointa_SNR')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Point A?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Point A?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'back_to_trigger':
+        async with user_data_lock:
+            if 'VC' in user_data[auth_key]:
+                del user_data[auth_key]['VC']
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
-            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')],
-            [InlineKeyboardButton("Готово", callback_data='trigger_done')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_pointa')]
+            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, 
+                                       text=f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", 
+                                       reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_DONE_MENU)
     
     elif query.data == 'back_to_vc':
+        async with user_data_lock:
+            if 'Entry Model' in user_data[auth_key]:
+                del user_data[auth_key]['Entry Model']
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
-            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
-            [InlineKeyboardButton("Готово", callback_data='vc_done')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_trigger')]
+            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, 
+                                       text=f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", 
+                                       reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_DONE_MENU)
     
     elif query.data == 'back_to_entrymodel':
+        async with user_data_lock:
+            if 'Entry TF' in user_data[auth_key]:
+                del user_data[auth_key]['Entry TF']
         keyboard = [
             [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
             [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
             [InlineKeyboardButton("SNR", callback_data='entrymodel_SNR')],
-            [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_vc')]
+            [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Entry Model?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'back_to_entrytf':
+        async with user_data_lock:
+            if 'Point B' in user_data[auth_key]:
+                del user_data[auth_key]['Point B']
         keyboard = [
             [InlineKeyboardButton("3m", callback_data='entrytf_3m')],
             [InlineKeyboardButton("5m", callback_data='entrytf_5m')],
             [InlineKeyboardButton("15m", callback_data='entrytf_15m')],
             [InlineKeyboardButton("1H/30m", callback_data='entrytf_1H/30m')],
-            [InlineKeyboardButton("4H", callback_data='entrytf_4H')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_entrymodel')]
+            [InlineKeyboardButton("4H", callback_data='entrytf_4H')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Entry TF?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Entry TF?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'back_to_pointb':
+        async with user_data_lock:
+            if 'SL Position' in user_data[auth_key]:
+                del user_data[auth_key]['SL Position']
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='pointb_Fractal Swing')],
-            [InlineKeyboardButton("FVG", callback_data='pointb_FVG')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_entrytf')]
+            [InlineKeyboardButton("FVG", callback_data='pointb_FVG')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Point B?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Point B?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
 
     # Логіка підтвердження трейду
     elif query.data == 'submit_trade':
@@ -768,8 +842,8 @@ async def button(update, context):
                 conn = heroku3.from_key(HEROKU_API_KEY)
                 heroku_app = conn.apps()['tradenotionbot-lg2']
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-                for key in ['waiting_for_rr', 'Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
-                            'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']:
+                for key in ['Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
+                            'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR', 'waiting_for_rr']:
                     if key in user_data[auth_key]:
                         del user_data[auth_key][key]
                 user_data[auth_key]['Trigger'] = []
@@ -828,7 +902,8 @@ async def button(update, context):
             [InlineKeyboardButton("New York", callback_data='session_New York')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Session?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Session?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_context':
         keyboard = [
@@ -837,7 +912,8 @@ async def button(update, context):
             [InlineKeyboardButton("Neutral Context", callback_data='context_Neutral Context')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Context?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Context?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_testpoi':
         keyboard = [
@@ -845,7 +921,8 @@ async def button(update, context):
             [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Test POI?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Test POI?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_delivery':
         keyboard = [
@@ -853,7 +930,8 @@ async def button(update, context):
             [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Delivery to POI?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_pointa':
         keyboard = [
@@ -863,7 +941,8 @@ async def button(update, context):
             [InlineKeyboardButton("SNR", callback_data='pointa_SNR')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Point A?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Point A?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_trigger':
         async with user_data_lock:
@@ -871,11 +950,13 @@ async def button(update, context):
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
-            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')],
-            [InlineKeyboardButton("Готово", callback_data='trigger_done')]
+            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, 
+                                       text=f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", 
+                                       reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_DONE_MENU)
     
     elif query.data == 'edit_vc':
         async with user_data_lock:
@@ -883,11 +964,13 @@ async def button(update, context):
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
-            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
-            [InlineKeyboardButton("Готово", callback_data='vc_done')]
+            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, 
+                                       text=f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", 
+                                       reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_DONE_MENU)
     
     elif query.data == 'edit_entrymodel':
         keyboard = [
@@ -897,7 +980,8 @@ async def button(update, context):
             [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Entry Model?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_entrytf':
         keyboard = [
@@ -908,7 +992,8 @@ async def button(update, context):
             [InlineKeyboardButton("4H", callback_data='entrytf_4H')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Entry TF?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Entry TF?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_pointb':
         keyboard = [
@@ -916,7 +1001,8 @@ async def button(update, context):
             [InlineKeyboardButton("FVG", callback_data='pointb_FVG')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Point B?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Point B?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_slposition':
         keyboard = [
@@ -925,13 +1011,13 @@ async def button(update, context):
             [InlineKeyboardButton("4H Raid", callback_data='slposition_4H Raid')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('SL Position?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text='SL Position?', reply_markup=reply_markup)
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери опцію:", reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_rr':
         async with user_data_lock:
             user_data[auth_key]['waiting_for_rr'] = True
-        await query.edit_message_text('Введи RR вручну (наприклад, 2.5):')
-        await context.bot.send_message(chat_id=query.message.chat_id, text='Введи число:', reply_markup=ReplyKeyboardRemove())
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):', reply_markup=ReplyKeyboardRemove())
 
 # Головна функція для запуску бота
 def main():
