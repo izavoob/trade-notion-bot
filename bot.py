@@ -140,14 +140,16 @@ def fetch_page_properties(page_id, notion_token):
     data = response.json()
     properties = data.get('properties', {})
     
+    num = properties.get('Num', {}).get('number', None)
+    date = properties.get('Date', {}).get('date', {}).get('start', None)
     score = properties.get('Score', {}).get('formula', {}).get('number', None)
     trade_class = properties.get('Trade Class', {}).get('formula', {}).get('string', None)
     offer_risk = properties.get('Offer Risk', {}).get('formula', {}).get('number', None)
-    trade_num = properties.get('Num', {}).get('number', None)  # Отримуємо "Num" як число
     
-    logger.info(f"Retrieved properties - Num: {trade_num}, Score: {score}, Trade Class: {trade_class}, Offer Risk: {offer_risk}")
+    logger.info(f"Retrieved properties - Num: {num}, Date: {date}, Score: {score}, Trade Class: {trade_class}, Offer Risk: {offer_risk}")
     return {
-        'Num': trade_num,
+        'Num': num,
+        'Date': date,
         'Score': score,
         'Trade Class': trade_class,
         'Offer Risk': offer_risk
@@ -163,7 +165,7 @@ def fetch_last_5_trades(classification_db_id, notion_token):
         "Notion-Version": "2022-06-28"
     }
     payload = {
-        "sorts": [{"property": "Created time", "direction": "descending"}],
+        "sorts": [{"timestamp": "created_time", "direction": "descending"}],  # Виправлено на "created_time"
         "page_size": 5
     }
     response = requests.post(url, json=payload, headers=headers)
@@ -177,7 +179,8 @@ def fetch_last_5_trades(classification_db_id, notion_token):
         properties = fetch_page_properties(page_id, notion_token)
         if properties:
             trades.append({
-                "id": properties["Num"],  # Використовуємо "Num" як ID
+                "Num": properties["Num"],
+                "Date": properties["Date"],
                 "Score": properties["Score"],
                 "Trade Class": properties["Trade Class"],
                 "Offer Risk": properties["Offer Risk"]
@@ -643,7 +646,7 @@ async def button(update, context):
             page_id, trade_num = create_notion_page(auth_key)
             if page_id:
                 user_data[auth_key]['last_trade'] = {
-                    'id': trade_num,  # Зберігаємо trade_num як ID
+                    'id': trade_num,
                     'Pair': user_data[auth_key].get('Pair'),
                     'Session': user_data[auth_key].get('Session'),
                     'Context': user_data[auth_key].get('Context'),
@@ -661,7 +664,7 @@ async def button(update, context):
                 if 'last_trades' not in user_data[auth_key]:
                     user_data[auth_key]['last_trades'] = []
                 user_data[auth_key]['last_trades'].insert(0, {
-                    'id': trade_num,  # Зберігаємо trade_num як ID
+                    'id': trade_num,
                     'properties': fetch_page_properties(page_id, user_data[auth_key]['notion_token'])
                 })
                 if len(user_data[auth_key]['last_trades']) > 5:
@@ -679,17 +682,17 @@ async def button(update, context):
                     display_date = datetime.now().strftime("%B %d, %Y")
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,
-                        text=f"ID трейду: {trade_num}\n"  # Використовуємо trade_num
+                        text=f"ID трейду: {trade_num}\n"
                              f"Дата: {display_date}\n"
                              f"Оцінка вашого трейду: {score}\n"
                              f"Категорія трейду: {trade_class}\n"
-                             f"Рекомендований ризик: {offer_risk}"
+                             f"Рекомендований ризик: {offer_risk}%"  # Додано знак %
                     )
                 else:
                     display_date = datetime.now().strftime("%B %d, %Y")
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,
-                        text=f"ID трейду: {trade_num}\n"  # Використовуємо trade_num
+                        text=f"ID трейду: {trade_num}\n"
                              f"Дата: {display_date}\n"
                              f"Не вдалося отримати оцінку трейду. Перевір логи."
                     )
@@ -743,15 +746,17 @@ async def button(update, context):
             if trades:
                 message = "Останні 5 трейдів:\n\n"
                 for trade in trades:
+                    num = trade['Num'] if trade['Num'] is not None else "Немає даних"
+                    date = trade['Date'] if trade['Date'] is not None else "Немає даних"
                     score = trade['Score'] if trade['Score'] is not None else "Немає даних"
                     trade_class = trade['Trade Class'] if trade['Trade Class'] is not None else "Немає даних"
                     offer_risk = trade['Offer Risk'] if trade['Offer Risk'] is not None else "Немає даних"
-                    trade_num = trade['id'] if trade['id'] is not None else "Немає даних"
                     message += (
-                        f"ID трейду: {trade_num}\n"  # Використовуємо trade_num
-                        f"Оцінка вашого трейду: {score}\n"
+                        f"Трейд №: {num}\n"
+                        f"Доданий: {date}\n"
+                        f"Оцінка трейду: {score}\n"
                         f"Категорія трейду: {trade_class}\n"
-                        f"Рекомендований ризик: {offer_risk}\n\n"
+                        f"Ризик: {offer_risk}%\n\n"  # Додано знак %
                     )
             else:
                 message = "Не вдалося отримати останні трейди або їх ще немає."
