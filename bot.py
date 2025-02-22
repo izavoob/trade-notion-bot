@@ -313,7 +313,9 @@ async def handle_text(update, context):
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text('Pair?', reply_markup=reply_markup)
-            context.user_data['menu_message'] = await update.message.reply_text('.', reply_markup=BACK_CANCEL_MENU)
+            if 'menu_message' in context.user_data:
+                await context.user_data['menu_message'].delete()
+            context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
         elif text == "Переглянути останній трейд":
             if 'last_trades' in user_data[auth_key] and user_data[auth_key]['last_trades']:
                 last_trade = user_data[auth_key]['last_trades'][0]['properties']
@@ -371,7 +373,6 @@ async def handle_text(update, context):
                 del context.user_data['menu_message']
         # Обробка "Назад"
         elif text == "Назад" and 'Pair' in user_data[auth_key]:
-            menu_message = context.user_data.get('menu_message')
             if 'waiting_for_rr' in user_data[auth_key]:
                 del user_data[auth_key]['waiting_for_rr']
                 keyboard = [
@@ -381,11 +382,16 @@ async def handle_text(update, context):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text('SL Position?', reply_markup=reply_markup)
-                await menu_message.edit_text('.', reply_markup=BACK_CANCEL_MENU)
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
             elif 'RR' in user_data[auth_key]:
                 del user_data[auth_key]['RR']
                 user_data[auth_key]['waiting_for_rr'] = True
                 await update.message.reply_text('Введи RR вручну (наприклад, 2.5):', reply_markup=ReplyKeyboardRemove())
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                    del context.user_data['menu_message']
             elif 'SL Position' in user_data[auth_key]:
                 del user_data[auth_key]['SL Position']
                 keyboard = [
@@ -394,7 +400,9 @@ async def handle_text(update, context):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text('Point B?', reply_markup=reply_markup)
-                await menu_message.edit_text('.', reply_markup=BACK_CANCEL_MENU)
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
             elif 'Point B' in user_data[auth_key]:
                 del user_data[auth_key]['Point B']
                 keyboard = [
@@ -406,7 +414,9 @@ async def handle_text(update, context):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text('Entry TF?', reply_markup=reply_markup)
-                await menu_message.edit_text('.', reply_markup=BACK_CANCEL_MENU)
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
             elif 'Entry TF' in user_data[auth_key]:
                 del user_data[auth_key]['Entry TF']
                 keyboard = [
@@ -417,7 +427,9 @@ async def handle_text(update, context):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text('Entry Model?', reply_markup=reply_markup)
-                await menu_message.edit_text('.', reply_markup=BACK_CANCEL_MENU)
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
             elif 'Entry Model' in user_data[auth_key]:
                 del user_data[auth_key]['Entry Model']
                 keyboard = [
@@ -427,7 +439,9 @@ async def handle_text(update, context):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
-                await menu_message.edit_text('.', reply_markup=BACK_CANCEL_DONE_MENU)
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_DONE_MENU)
             elif 'VC' in user_data[auth_key]:
                 del user_data[auth_key]['VC']
                 keyboard = [
@@ -437,7 +451,9 @@ async def handle_text(update, context):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
-                await menu_message.edit_text('.', reply_markup=BACK_CANCEL_DONE_MENU)
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_DONE_MENU)
             elif 'Trigger' in user_data[auth_key]:
                 del user_data[auth_key]['Trigger']
                 keyboard = [
@@ -448,7 +464,9 @@ async def handle_text(update, context):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text('Point A?', reply_markup=reply_markup)
-                await menu_message.edit_text('.', reply_markup=BACK_CANCEL_MENU)
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
             elif 'Point A' in user_data[auth_key]:
                 del user_data[auth_key]['Point A']
                 keyboard = [
@@ -457,7 +475,9 @@ async def handle_text(update, context):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text('Delivery to POI?', reply_markup=reply_markup)
-                await menu_message.edit_text('.', reply_markup=BACK_CANCEL_MENU)
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
             elif 'Delivery to POI' in user_data[auth_key]:
                 del user_data[auth_key]['Delivery to POI']
                 keyboard = [
@@ -466,7 +486,9 @@ async def handle_text(update, context):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text('Test POI?', reply_markup=reply_markup)
-                await menu_message.edit_text('.', reply_markup=BACK_CANCEL_MENU)
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
             elif 'Test POI' in user_data[auth_key]:
                 del user_data[auth_key]['Test POI']
                 keyboard = [
@@ -476,7 +498,9 @@ async def handle_text(update, context):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text('Context?', reply_markup=reply_markup)
-                await menu_message.edit_text('.', reply_markup=BACK_CANCEL_MENU)
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
             elif 'Context' in user_data[auth_key]:
                 del user_data[auth_key]['Context']
                 keyboard = [
@@ -488,7 +512,9 @@ async def handle_text(update, context):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text('Session?', reply_markup=reply_markup)
-                await menu_message.edit_text('.', reply_markup=BACK_CANCEL_MENU)
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
             elif 'Session' in user_data[auth_key]:
                 del user_data[auth_key]['Session']
                 keyboard = [
@@ -500,15 +526,15 @@ async def handle_text(update, context):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text('Pair?', reply_markup=reply_markup)
-                await menu_message.edit_text('.', reply_markup=BACK_CANCEL_MENU)
-
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
         # Обробка "Готово" для Trigger і VC
         elif text == "Готово" and 'Pair' in user_data[auth_key]:
-            menu_message = context.user_data.get('menu_message')
             if 'Point A' in user_data[auth_key] and 'Trigger' not in user_data[auth_key]:
-                await update.message.reply_text("Обери хоча б один Trigger!", reply_markup=menu_message.reply_markup)
+                await update.message.reply_text("Обери хоча б один Trigger!")
             elif 'Trigger' in user_data[auth_key] and not user_data[auth_key]['Trigger']:
-                await update.message.reply_text("Обери хоча б один Trigger!", reply_markup=menu_message.reply_markup)
+                await update.message.reply_text("Обери хоча б один Trigger!")
             elif 'Trigger' in user_data[auth_key] and 'VC' not in user_data[auth_key]:
                 keyboard = [
                     [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
@@ -517,9 +543,11 @@ async def handle_text(update, context):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
-                await menu_message.edit_text('.', reply_markup=BACK_CANCEL_DONE_MENU)
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_DONE_MENU)
             elif 'VC' in user_data[auth_key] and not user_data[auth_key]['VC']:
-                await update.message.reply_text("Обери хоча б один VC!", reply_markup=menu_message.reply_markup)
+                await update.message.reply_text("Обери хоча б один VC!")
             elif 'VC' in user_data[auth_key]:
                 keyboard = [
                     [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
@@ -529,7 +557,9 @@ async def handle_text(update, context):
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text('Entry Model?', reply_markup=reply_markup)
-                await menu_message.edit_text('.', reply_markup=BACK_CANCEL_MENU)
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
         # Обробка введення RR
         elif 'waiting_for_rr' in user_data[auth_key]:
             try:
@@ -601,7 +631,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Pair?', reply_markup=reply_markup)
-        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('pair_'):
         user_data[auth_key]['Pair'] = query.data.split('_')[1]
@@ -615,9 +647,8 @@ async def button(update, context):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Session?', reply_markup=reply_markup)
         if 'menu_message' in context.user_data:
-            await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
-        else:
-            context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='.', reply_markup=BACK_CANCEL_MENU)
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('session_'):
         user_data[auth_key]['Session'] = query.data.split('_')[1]
@@ -628,7 +659,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Context?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('context_'):
         user_data[auth_key]['Context'] = query.data.split('_')[1]
@@ -638,7 +671,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Test POI?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('testpoi_'):
         user_data[auth_key]['Test POI'] = query.data.split('_')[1]
@@ -648,7 +683,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('delivery_'):
         user_data[auth_key]['Delivery to POI'] = query.data.split('_')[1]
@@ -660,7 +697,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Point A?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('pointa_'):
         user_data[auth_key]['Point A'] = query.data.split('_')[1]
@@ -672,9 +711,11 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_DONE_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_DONE_MENU)
     
-    elif query.data.startswith('trigger_') and query.data != 'trigger_done':
+    elif query.data.startswith('trigger_'):
         trigger_value = query.data.split('_')[1]
         if trigger_value in user_data[auth_key]['Trigger']:
             user_data[auth_key]['Trigger'].remove(trigger_value)
@@ -688,7 +729,7 @@ async def button(update, context):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
-    elif query.data.startswith('vc_') and query.data != 'vc_done':
+    elif query.data.startswith('vc_'):
         vc_value = query.data.split('_')[1]
         if vc_value in user_data[auth_key]['VC']:
             user_data[auth_key]['VC'].remove(vc_value)
@@ -702,20 +743,6 @@ async def button(update, context):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
-    elif query.data == 'vc_done':
-        if not user_data[auth_key]['VC']:
-            await query.edit_message_text("Обери хоча б один VC!")
-            return
-        keyboard = [
-            [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
-            [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
-            [InlineKeyboardButton("SNR", callback_data='entrymodel_SNR')],
-            [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
-    
     elif query.data.startswith('entrymodel_'):
         user_data[auth_key]['Entry Model'] = query.data.split('_')[1]
         keyboard = [
@@ -727,7 +754,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Entry TF?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('entrytf_'):
         user_data[auth_key]['Entry TF'] = query.data.split('_')[1]
@@ -737,7 +766,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Point B?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('pointb_'):
         user_data[auth_key]['Point B'] = query.data.split('_')[1]
@@ -748,12 +779,17 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('SL Position?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data.startswith('slposition_'):
         user_data[auth_key]['SL Position'] = query.data.split('_')[1]
         user_data[auth_key]['waiting_for_rr'] = True
         await query.edit_message_text('Введи RR вручну (наприклад, 2.5):', reply_markup=ReplyKeyboardRemove())
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+            del context.user_data['menu_message']
 
     # Логіка підтвердження трейду
     elif query.data == 'submit_trade':
@@ -870,7 +906,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Pair?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_session':
         keyboard = [
@@ -882,7 +920,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Session?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_context':
         keyboard = [
@@ -892,7 +932,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Context?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_testpoi':
         keyboard = [
@@ -901,7 +943,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Test POI?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_delivery':
         keyboard = [
@@ -910,7 +954,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_pointa':
         keyboard = [
@@ -921,7 +967,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Point A?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_trigger':
         user_data[auth_key]['Trigger'] = []
@@ -932,7 +980,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_DONE_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_DONE_MENU)
     
     elif query.data == 'edit_vc':
         user_data[auth_key]['VC'] = []
@@ -943,7 +993,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_DONE_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_DONE_MENU)
     
     elif query.data == 'edit_entrymodel':
         keyboard = [
@@ -954,7 +1006,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_entrytf':
         keyboard = [
@@ -966,7 +1020,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Entry TF?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_pointb':
         keyboard = [
@@ -975,7 +1031,9 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Point B?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_slposition':
         keyboard = [
@@ -985,11 +1043,16 @@ async def button(update, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('SL Position?', reply_markup=reply_markup)
-        await context.user_data['menu_message'].edit_text('.', reply_markup=BACK_CANCEL_MENU)
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
     
     elif query.data == 'edit_rr':
         user_data[auth_key]['waiting_for_rr'] = True
         await query.edit_message_text('Введи RR вручну (наприклад, 2.5):', reply_markup=ReplyKeyboardRemove())
+        if 'menu_message' in context.user_data:
+            await context.user_data['menu_message'].delete()
+            del context.user_data['menu_message']
 
 # Головна функція для запуску бота
 def main():
