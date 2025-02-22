@@ -297,16 +297,22 @@ async def button(update, context):
     logger.info(f"Button callback received from user {user_id}: {query.data}")
     
     await query.answer()
+    logger.debug(f"Starting reload_user_data for user {user_id}")
     await reload_user_data()  # Перезавантажуємо user_data перед обробкою
+    logger.debug(f"Finished reload_user_data for user {user_id}, user_data: {json.dumps(user_data.get(auth_key, {}), indent=2)}")
     
     async with user_data_lock:
+        logger.debug(f"Checking authorization for user {user_id}")
         if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
+            logger.warning(f"User {user_id} not authorized or no notion_token")
             await query.edit_message_text("Спочатку авторизуйся через /start.")
             return
         if 'parent_page_id' not in user_data[auth_key]:
+            logger.warning(f"User {user_id} has no parent_page_id")
             await query.edit_message_text("Спочатку введи ID сторінки через /start.")
             return
         
+        logger.debug(f"Initializing Trigger and VC for user {user_id}")
         if 'Trigger' not in user_data[auth_key] or not isinstance(user_data[auth_key]['Trigger'], list):
             user_data[auth_key]['Trigger'] = []
         if 'VC' not in user_data[auth_key] or not isinstance(user_data[auth_key]['VC'], list):
@@ -314,7 +320,7 @@ async def button(update, context):
 
     if query.data == 'add_trade':
         try:
-            logger.info(f"Processing add_trade for user {user_id}, user_data: {json.dumps(user_data.get(auth_key, {}), indent=2)}")
+            logger.info(f"Processing add_trade for user {user_id}")
             keyboard = [
                 [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
                 [InlineKeyboardButton("GBPUSD", callback_data='pair_GBPUSD')],
@@ -324,8 +330,9 @@ async def button(update, context):
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text('Pair?', reply_markup=reply_markup)
+            logger.info(f"Successfully sent Pair? message for user {user_id}")
         except Exception as e:
-            logger.error(f"Error in add_trade: {str(e)}")
+            logger.error(f"Error in add_trade for user {user_id}: {str(e)}")
             await query.edit_message_text("Сталася помилка. Спробуй ще раз через /start.")
     
     elif query.data.startswith('pair_'):
@@ -870,7 +877,7 @@ async def button(update, context):
 # Головна функція для запуску бота
 def main():
     logger.info("Starting bot with TELEGRAM_TOKEN: [REDACTED]")
-    application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(30).write_timeout(30).build()
+    application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(60).write_timeout(60).build()  # Збільшено до 60 секунд
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('restart', restart))
     application.add_handler(CallbackQueryHandler(button))
