@@ -59,12 +59,12 @@ def create_notion_page(user_id):
     
     trigger_values = user_data[user_id].get('Trigger', [])
     vc_values = user_data[user_id].get('VC', [])
-    current_date = datetime.now().strftime("%B %d, %Y")  # Формат: February 11, 2025
+    current_date = datetime.now().strftime("%Y-%m-%d")  # Формат ISO 8601: 2025-02-22
     payload = {
         'parent': {'database_id': user_data[user_id]['classification_db_id']},
         'properties': {
             'Name': {'title': [{'text': {'content': 'Trade'}}]},  # Назва "Trade"
-            'Date': {'date': {'start': current_date}},  # Додаємо дату
+            'Date': {'date': {'start': current_date}},  # Додаємо дату у форматі ISO 8601
             'Pair': {'select': {'name': user_data[user_id]['Pair']}},
             'Session': {'select': {'name': user_data[user_id]['Session']}},
             'Context': {'select': {'name': user_data[user_id]['Context']}},
@@ -644,17 +644,22 @@ async def button(update, context):
                     score = properties['Score'] if properties['Score'] is not None else "Немає даних"
                     trade_class = properties['Trade Class'] if properties['Trade Class'] is not None else "Немає даних"
                     offer_risk = properties['Offer Risk'] if properties['Offer Risk'] is not None else "Немає даних"
+                    display_date = datetime.now().strftime("%B %d, %Y")  # Для відображення в Telegram
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,
                         text=f"ID трейду: {page_id}\n"
+                             f"Дата: {display_date}\n"  # Додаємо дату для користувача
                              f"Оцінка вашого трейду: {score}\n"
                              f"Категорія трейду: {trade_class}\n"
                              f"Рекомендований ризик: {offer_risk}"
                     )
                 else:
+                    display_date = datetime.now().strftime("%B %d, %Y")
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,
-                        text=f"ID трейду: {page_id}\nНе вдалося отримати оцінку трейду. Перевір логи."
+                        text=f"ID трейду: {page_id}\n"
+                             f"Дата: {display_date}\n"
+                             f"Не вдалося отримати оцінку трейду. Перевір логи."
                     )
                 
                 conn = heroku3.from_key(HEROKU_API_KEY)
