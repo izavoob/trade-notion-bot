@@ -38,13 +38,13 @@ MAIN_MENU = ReplyKeyboardMarkup(
 )
 
 # Меню для етапу Pair
-PAIR_MENU = ReplyKeyboardMarkup([["Обрати Шаблон", "Скасувати"]], resize_keyboard=True, one_time_keyboard=False)
+PAIR_MENU = ReplyKeyboardMarkup([["Обрати Шаблон", "Скасувати"]], resize_keyboard=True, one_time_keyboard=True)
 
 # Меню з "Назад" і "Скасувати"
-BACK_CANCEL_MENU = ReplyKeyboardMarkup([["Назад", "Скасувати"]], resize_keyboard=True, one_time_keyboard=False)
+BACK_CANCEL_MENU = ReplyKeyboardMarkup([["Назад", "Скасувати"]], resize_keyboard=True, one_time_keyboard=True)
 
 # Меню з "Назад", "Скасувати" і "Готово"
-BACK_CANCEL_DONE_MENU = ReplyKeyboardMarkup([["Назад", "Скасувати"], ["Готово"]], resize_keyboard=True, one_time_keyboard=False)
+BACK_CANCEL_DONE_MENU = ReplyKeyboardMarkup([["Назад", "Скасувати"], ["Готово"]], resize_keyboard=True, one_time_keyboard=True)
 
 # Функція для отримання ID бази "Classification"
 def fetch_classification_db_id(page_id, notion_token):
@@ -159,6 +159,7 @@ def format_summary(data):
 async def start(update, context):
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"Start command received for user_id: {user_id}")
     async with user_data_lock:
         if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
             instructions = (
@@ -194,8 +195,10 @@ async def main_menu(update, context):
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
     text = update.message.text
+    logger.debug(f"Main menu processing for user_id: {user_id}, text: {text}")
     
     if text == "Додати новий трейд":
+        logger.debug(f"User {user_id} selected 'Додати новий трейд'")
         keyboard = [
             [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
             [InlineKeyboardButton("GBPUSD", callback_data='pair_GBPUSD')],
@@ -203,9 +206,10 @@ async def main_menu(update, context):
             [InlineKeyboardButton("XAUUSD", callback_data='pair_XAUUSD')],
             [InlineKeyboardButton("GER40", callback_data='pair_GER40')]
         ]
-        await update.message.reply_text('Pair?', reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_text('Pair?', reply_markup=InlineKeyboardMarkup(keyboard), reply_markup_remove=ReplyKeyboardRemove())
         return PAIR
     elif text == "Переглянути останній трейд":
+        logger.debug(f"User {user_id} selected 'Переглянути останній трейд'")
         async with user_data_lock:
             if 'last_trades' in user_data[auth_key] and user_data[auth_key]['last_trades']:
                 last_trade = user_data[auth_key]['last_trades'][0]['properties']
@@ -221,6 +225,7 @@ async def main_menu(update, context):
                 await update.message.reply_text("Ще немає відправлених трейдів.", reply_markup=MAIN_MENU)
         return START
     elif text == "5 останніх трейдів":
+        logger.debug(f"User {user_id} selected '5 останніх трейдів'")
         async with user_data_lock:
             trades = fetch_last_five_trades(user_data[auth_key]['classification_db_id'], user_data[auth_key]['notion_token'])
             if trades:
@@ -238,10 +243,12 @@ async def main_menu(update, context):
                 await update.message.reply_text("Не вдалося отримати трейди з Notion.", reply_markup=MAIN_MENU)
         return START
     elif text == "Повторна авторизація":
+        logger.debug(f"User {user_id} selected 'Повторна авторизація'")
         auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
         keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
         await update.message.reply_text("Натисни для повторної авторизації:", reply_markup=InlineKeyboardMarkup(keyboard))
         return START
+    logger.debug(f"Unknown text '{text}' received in main_menu for user_id: {user_id}")
     return START
 
 # Обробка етапу Pair
@@ -249,6 +256,7 @@ async def pair(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"Pair state entered for user_id: {user_id}, callback_data: {query.data}")
     await query.answer()
     async with user_data_lock:
         user_data[auth_key]['Pair'] = query.data.split('_')[1]
@@ -264,14 +272,19 @@ async def pair(update, context):
 
 async def pair_text(update, context):
     text = update.message.text
+    user_id = str(update.message.from_user.id)
+    logger.debug(f"Pair_text received for user_id: {user_id}, text: {text}")
     if text == "Обрати Шаблон":
+        logger.debug(f"User {user_id} selected 'Обрати Шаблон'")
         await update.message.reply_text("Шаблони в розробці!", reply_markup=MAIN_MENU)
         return ConversationHandler.END
     elif text == "Скасувати":
+        logger.debug(f"User {user_id} selected 'Скасувати' in Pair")
         async with user_data_lock:
-            user_data[str(update.message.from_user.id)].clear()
+            user_data[user_id].clear()
         await update.message.reply_text("Скасовано.", reply_markup=MAIN_MENU)
         return ConversationHandler.END
+    logger.debug(f"Unknown text '{text}' in pair_text for user_id: {user_id}")
     return PAIR
 
 # Обробка етапу Session
@@ -279,6 +292,7 @@ async def session(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"Session state entered for user_id: {user_id}, callback_data: {query.data}")
     await query.answer()
     async with user_data_lock:
         user_data[auth_key]['Session'] = query.data.split('_')[1]
@@ -292,7 +306,10 @@ async def session(update, context):
 
 async def session_text(update, context):
     text = update.message.text
+    user_id = str(update.message.from_user.id)
+    logger.debug(f"Session_text received for user_id: {user_id}, text: {text}")
     if text == "Назад":
+        logger.debug(f"User {user_id} selected 'Назад' in Session")
         keyboard = [
             [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
             [InlineKeyboardButton("GBPUSD", callback_data='pair_GBPUSD')],
@@ -303,10 +320,12 @@ async def session_text(update, context):
         await update.message.reply_text('Pair?', reply_markup=InlineKeyboardMarkup(keyboard))
         return PAIR
     elif text == "Скасувати":
+        logger.debug(f"User {user_id} selected 'Скасувати' in Session")
         async with user_data_lock:
-            user_data[str(update.message.from_user.id)].clear()
+            user_data[user_id].clear()
         await update.message.reply_text("Скасовано.", reply_markup=MAIN_MENU)
         return ConversationHandler.END
+    logger.debug(f"Unknown text '{text}' in session_text for user_id: {user_id}")
     return SESSION
 
 # Обробка етапу Context
@@ -314,6 +333,7 @@ async def context(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"Context state entered for user_id: {user_id}, callback_data: {query.data}")
     await query.answer()
     async with user_data_lock:
         user_data[auth_key]['Context'] = query.data.split('_')[1]
@@ -326,7 +346,10 @@ async def context(update, context):
 
 async def context_text(update, context):
     text = update.message.text
+    user_id = str(update.message.from_user.id)
+    logger.debug(f"Context_text received for user_id: {user_id}, text: {text}")
     if text == "Назад":
+        logger.debug(f"User {user_id} selected 'Назад' in Context")
         keyboard = [
             [InlineKeyboardButton("Asia", callback_data='session_Asia')],
             [InlineKeyboardButton("Frankfurt", callback_data='session_Frankfurt')],
@@ -337,10 +360,12 @@ async def context_text(update, context):
         await update.message.reply_text('Session?', reply_markup=InlineKeyboardMarkup(keyboard))
         return SESSION
     elif text == "Скасувати":
+        logger.debug(f"User {user_id} selected 'Скасувати' in Context")
         async with user_data_lock:
-            user_data[str(update.message.from_user.id)].clear()
+            user_data[user_id].clear()
         await update.message.reply_text("Скасовано.", reply_markup=MAIN_MENU)
         return ConversationHandler.END
+    logger.debug(f"Unknown text '{text}' in context_text for user_id: {user_id}")
     return CONTEXT
 
 # Обробка етапу Test POI
@@ -348,6 +373,7 @@ async def test_poi(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"Test POI state entered for user_id: {user_id}, callback_data: {query.data}")
     await query.answer()
     async with user_data_lock:
         user_data[auth_key]['Test POI'] = query.data.split('_')[1]
@@ -360,7 +386,10 @@ async def test_poi(update, context):
 
 async def test_poi_text(update, context):
     text = update.message.text
+    user_id = str(update.message.from_user.id)
+    logger.debug(f"Test_poi_text received for user_id: {user_id}, text: {text}")
     if text == "Назад":
+        logger.debug(f"User {user_id} selected 'Назад' in Test POI")
         keyboard = [
             [InlineKeyboardButton("By Context", callback_data='context_By Context')],
             [InlineKeyboardButton("Against Context", callback_data='context_Against Context')],
@@ -369,10 +398,12 @@ async def test_poi_text(update, context):
         await update.message.reply_text('Context?', reply_markup=InlineKeyboardMarkup(keyboard))
         return CONTEXT
     elif text == "Скасувати":
+        logger.debug(f"User {user_id} selected 'Скасувати' in Test POI")
         async with user_data_lock:
-            user_data[str(update.message.from_user.id)].clear()
+            user_data[user_id].clear()
         await update.message.reply_text("Скасовано.", reply_markup=MAIN_MENU)
         return ConversationHandler.END
+    logger.debug(f"Unknown text '{text}' in test_poi_text for user_id: {user_id}")
     return TEST_POI
 
 # Обробка етапу Delivery to POI
@@ -380,6 +411,7 @@ async def delivery(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"Delivery state entered for user_id: {user_id}, callback_data: {query.data}")
     await query.answer()
     async with user_data_lock:
         user_data[auth_key]['Delivery to POI'] = query.data.split('_')[1]
@@ -394,7 +426,10 @@ async def delivery(update, context):
 
 async def delivery_text(update, context):
     text = update.message.text
+    user_id = str(update.message.from_user.id)
+    logger.debug(f"Delivery_text received for user_id: {user_id}, text: {text}")
     if text == "Назад":
+        logger.debug(f"User {user_id} selected 'Назад' in Delivery")
         keyboard = [
             [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
             [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')]
@@ -402,10 +437,12 @@ async def delivery_text(update, context):
         await update.message.reply_text('Test POI?', reply_markup=InlineKeyboardMarkup(keyboard))
         return TEST_POI
     elif text == "Скасувати":
+        logger.debug(f"User {user_id} selected 'Скасувати' in Delivery")
         async with user_data_lock:
-            user_data[str(update.message.from_user.id)].clear()
+            user_data[user_id].clear()
         await update.message.reply_text("Скасовано.", reply_markup=MAIN_MENU)
         return ConversationHandler.END
+    logger.debug(f"Unknown text '{text}' in delivery_text for user_id: {user_id}")
     return DELIVERY
 
 # Обробка етапу Point A
@@ -413,6 +450,7 @@ async def point_a(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"Point A state entered for user_id: {user_id}, callback_data: {query.data}")
     await query.answer()
     async with user_data_lock:
         user_data[auth_key]['Point A'] = query.data.split('_')[1]
@@ -427,7 +465,10 @@ async def point_a(update, context):
 
 async def point_a_text(update, context):
     text = update.message.text
+    user_id = str(update.message.from_user.id)
+    logger.debug(f"Point_a_text received for user_id: {user_id}, text: {text}")
     if text == "Назад":
+        logger.debug(f"User {user_id} selected 'Назад' in Point A")
         keyboard = [
             [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
             [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')]
@@ -435,10 +476,12 @@ async def point_a_text(update, context):
         await update.message.reply_text('Delivery to POI?', reply_markup=InlineKeyboardMarkup(keyboard))
         return DELIVERY
     elif text == "Скасувати":
+        logger.debug(f"User {user_id} selected 'Скасувати' in Point A")
         async with user_data_lock:
-            user_data[str(update.message.from_user.id)].clear()
+            user_data[user_id].clear()
         await update.message.reply_text("Скасовано.", reply_markup=MAIN_MENU)
         return ConversationHandler.END
+    logger.debug(f"Unknown text '{text}' in point_a_text for user_id: {user_id}")
     return POINT_A
 
 # Обробка етапу Trigger
@@ -446,6 +489,7 @@ async def trigger(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"Trigger state entered for user_id: {user_id}, callback_data: {query.data}")
     await query.answer()
     trigger_value = query.data.split('_')[1]
     async with user_data_lock:
@@ -465,7 +509,9 @@ async def trigger_text(update, context):
     text = update.message.text
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"Trigger_text received for user_id: {user_id}, text: {text}")
     if text == "Назад":
+        logger.debug(f"User {user_id} selected 'Назад' in Trigger")
         keyboard = [
             [InlineKeyboardButton("Fractal Raid", callback_data='pointa_Fractal Raid')],
             [InlineKeyboardButton("RB", callback_data='pointa_RB')],
@@ -475,11 +521,13 @@ async def trigger_text(update, context):
         await update.message.reply_text('Point A?', reply_markup=InlineKeyboardMarkup(keyboard))
         return POINT_A
     elif text == "Скасувати":
+        logger.debug(f"User {user_id} selected 'Скасувати' in Trigger")
         async with user_data_lock:
             user_data[auth_key].clear()
         await update.message.reply_text("Скасовано.", reply_markup=MAIN_MENU)
         return ConversationHandler.END
     elif text == "Готово":
+        logger.debug(f"User {user_id} selected 'Готово' in Trigger")
         async with user_data_lock:
             if not user_data[auth_key]['Trigger']:
                 await update.message.reply_text("Обери хоча б один Trigger!")
@@ -492,6 +540,7 @@ async def trigger_text(update, context):
         ]
         await update.message.reply_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=InlineKeyboardMarkup(keyboard))
         return VC
+    logger.debug(f"Unknown text '{text}' in trigger_text for user_id: {user_id}")
     return TRIGGER
 
 # Обробка етапу VC
@@ -499,6 +548,7 @@ async def vc(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"VC state entered for user_id: {user_id}, callback_data: {query.data}")
     await query.answer()
     vc_value = query.data.split('_')[1]
     async with user_data_lock:
@@ -518,7 +568,9 @@ async def vc_text(update, context):
     text = update.message.text
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"VC_text received for user_id: {user_id}, text: {text}")
     if text == "Назад":
+        logger.debug(f"User {user_id} selected 'Назад' in VC")
         async with user_data_lock:
             user_data[auth_key]['VC'] = []
         keyboard = [
@@ -529,11 +581,13 @@ async def vc_text(update, context):
         await update.message.reply_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=InlineKeyboardMarkup(keyboard))
         return TRIGGER
     elif text == "Скасувати":
+        logger.debug(f"User {user_id} selected 'Скасувати' in VC")
         async with user_data_lock:
             user_data[auth_key].clear()
         await update.message.reply_text("Скасовано.", reply_markup=MAIN_MENU)
         return ConversationHandler.END
     elif text == "Готово":
+        logger.debug(f"User {user_id} selected 'Готово' in VC")
         async with user_data_lock:
             if not user_data[auth_key]['VC']:
                 await update.message.reply_text("Обери хоча б один VC!")
@@ -546,6 +600,7 @@ async def vc_text(update, context):
         ]
         await update.message.reply_text('Entry Model?', reply_markup=InlineKeyboardMarkup(keyboard))
         return ENTRY_MODEL
+    logger.debug(f"Unknown text '{text}' in vc_text for user_id: {user_id}")
     return VC
 
 # Обробка етапу Entry Model
@@ -553,6 +608,7 @@ async def entry_model(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"Entry Model state entered for user_id: {user_id}, callback_data: {query.data}")
     await query.answer()
     async with user_data_lock:
         user_data[auth_key]['Entry Model'] = query.data.split('_')[1]
@@ -568,22 +624,26 @@ async def entry_model(update, context):
 
 async def entry_model_text(update, context):
     text = update.message.text
+    user_id = str(update.message.from_user.id)
+    logger.debug(f"Entry_model_text received for user_id: {user_id}, text: {text}")
     if text == "Назад":
+        logger.debug(f"User {user_id} selected 'Назад' in Entry Model")
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
             [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')]
         ]
         async with user_data_lock:
-            user_id = str(update.message.from_user.id)
             auth_key = f"{user_id}user"
             await update.message.reply_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=InlineKeyboardMarkup(keyboard))
         return VC
     elif text == "Скасувати":
+        logger.debug(f"User {user_id} selected 'Скасувати' in Entry Model")
         async with user_data_lock:
-            user_data[str(update.message.from_user.id)].clear()
+            user_data[user_id].clear()
         await update.message.reply_text("Скасовано.", reply_markup=MAIN_MENU)
         return ConversationHandler.END
+    logger.debug(f"Unknown text '{text}' in entry_model_text for user_id: {user_id}")
     return ENTRY_MODEL
 
 # Обробка етапу Entry TF
@@ -591,6 +651,7 @@ async def entry_tf(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"Entry TF state entered for user_id: {user_id}, callback_data: {query.data}")
     await query.answer()
     async with user_data_lock:
         user_data[auth_key]['Entry TF'] = query.data.split('_')[1]
@@ -603,7 +664,10 @@ async def entry_tf(update, context):
 
 async def entry_tf_text(update, context):
     text = update.message.text
+    user_id = str(update.message.from_user.id)
+    logger.debug(f"Entry_tf_text received for user_id: {user_id}, text: {text}")
     if text == "Назад":
+        logger.debug(f"User {user_id} selected 'Назад' in Entry TF")
         keyboard = [
             [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
             [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
@@ -613,10 +677,12 @@ async def entry_tf_text(update, context):
         await update.message.reply_text('Entry Model?', reply_markup=InlineKeyboardMarkup(keyboard))
         return ENTRY_MODEL
     elif text == "Скасувати":
+        logger.debug(f"User {user_id} selected 'Скасувати' in Entry TF")
         async with user_data_lock:
-            user_data[str(update.message.from_user.id)].clear()
+            user_data[user_id].clear()
         await update.message.reply_text("Скасовано.", reply_markup=MAIN_MENU)
         return ConversationHandler.END
+    logger.debug(f"Unknown text '{text}' in entry_tf_text for user_id: {user_id}")
     return ENTRY_TF
 
 # Обробка етапу Point B
@@ -624,6 +690,7 @@ async def point_b(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"Point B state entered for user_id: {user_id}, callback_data: {query.data}")
     await query.answer()
     async with user_data_lock:
         user_data[auth_key]['Point B'] = query.data.split('_')[1]
@@ -637,7 +704,10 @@ async def point_b(update, context):
 
 async def point_b_text(update, context):
     text = update.message.text
+    user_id = str(update.message.from_user.id)
+    logger.debug(f"Point_b_text received for user_id: {user_id}, text: {text}")
     if text == "Назад":
+        logger.debug(f"User {user_id} selected 'Назад' in Point B")
         keyboard = [
             [InlineKeyboardButton("3m", callback_data='entrytf_3m')],
             [InlineKeyboardButton("5m", callback_data='entrytf_5m')],
@@ -648,10 +718,12 @@ async def point_b_text(update, context):
         await update.message.reply_text('Entry TF?', reply_markup=InlineKeyboardMarkup(keyboard))
         return ENTRY_TF
     elif text == "Скасувати":
+        logger.debug(f"User {user_id} selected 'Скасувати' in Point B")
         async with user_data_lock:
-            user_data[str(update.message.from_user.id)].clear()
+            user_data[user_id].clear()
         await update.message.reply_text("Скасовано.", reply_markup=MAIN_MENU)
         return ConversationHandler.END
+    logger.debug(f"Unknown text '{text}' in point_b_text for user_id: {user_id}")
     return POINT_B
 
 # Обробка етапу SL Position
@@ -659,6 +731,7 @@ async def sl_position(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"SL Position state entered for user_id: {user_id}, callback_data: {query.data}")
     await query.answer()
     async with user_data_lock:
         user_data[auth_key]['SL Position'] = query.data.split('_')[1]
@@ -667,7 +740,10 @@ async def sl_position(update, context):
 
 async def sl_position_text(update, context):
     text = update.message.text
+    user_id = str(update.message.from_user.id)
+    logger.debug(f"SL_position_text received for user_id: {user_id}, text: {text}")
     if text == "Назад":
+        logger.debug(f"User {user_id} selected 'Назад' in SL Position")
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='pointb_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='pointb_FVG')]
@@ -675,10 +751,12 @@ async def sl_position_text(update, context):
         await update.message.reply_text('Point B?', reply_markup=InlineKeyboardMarkup(keyboard))
         return POINT_B
     elif text == "Скасувати":
+        logger.debug(f"User {user_id} selected 'Скасувати' in SL Position")
         async with user_data_lock:
-            user_data[str(update.message.from_user.id)].clear()
+            user_data[user_id].clear()
         await update.message.reply_text("Скасовано.", reply_markup=MAIN_MENU)
         return ConversationHandler.END
+    logger.debug(f"Unknown text '{text}' in sl_position_text for user_id: {user_id}")
     return SL_POSITION
 
 # Обробка етапу RR
@@ -686,6 +764,7 @@ async def rr(update, context):
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
     text = update.message.text
+    logger.debug(f"RR state entered for user_id: {user_id}, text: {text}")
     try:
         rr = float(text)
         async with user_data_lock:
@@ -706,7 +785,10 @@ async def rr(update, context):
 
 async def rr_text(update, context):
     text = update.message.text
+    user_id = str(update.message.from_user.id)
+    logger.debug(f"RR_text received for user_id: {user_id}, text: {text}")
     if text == "Назад":
+        logger.debug(f"User {user_id} selected 'Назад' in RR")
         keyboard = [
             [InlineKeyboardButton("LTF/Lunch Manipulation", callback_data='slposition_LTF/Lunch Manipulation')],
             [InlineKeyboardButton("1H/30m Raid", callback_data='slposition_1H/30m Raid')],
@@ -715,10 +797,12 @@ async def rr_text(update, context):
         await update.message.reply_text('SL Position?', reply_markup=InlineKeyboardMarkup(keyboard))
         return SL_POSITION
     elif text == "Скасувати":
+        logger.debug(f"User {user_id} selected 'Скасувати' in RR")
         async with user_data_lock:
-            user_data[str(update.message.from_user.id)].clear()
+            user_data[user_id].clear()
         await update.message.reply_text("Скасовано.", reply_markup=MAIN_MENU)
         return ConversationHandler.END
+    logger.debug(f"Unknown text '{text}' in rr_text for user_id: {user_id}")
     return RR
 
 # Обробка підсумку
@@ -726,9 +810,11 @@ async def summary(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
+    logger.debug(f"Summary state entered for user_id: {user_id}, callback_data: {query.data}")
     await query.answer()
 
     if query.data == 'submit_trade':
+        logger.debug(f"User {user_id} submitting trade")
         page_id, trade_num = create_notion_page(auth_key)
         if page_id:
             async with user_data_lock:
@@ -780,6 +866,7 @@ async def summary(update, context):
             await query.edit_message_text("Помилка при відправці трейду в Notion.", reply_markup=MAIN_MENU)
             return ConversationHandler.END
     elif query.data == 'edit_trade':
+        logger.debug(f"User {user_id} editing trade")
         keyboard = [
             [InlineKeyboardButton("Pair", callback_data='edit_pair')],
             [InlineKeyboardButton("Session", callback_data='edit_session')],
@@ -788,6 +875,7 @@ async def summary(update, context):
         await query.edit_message_text("Який параметр хочеш змінити?", reply_markup=InlineKeyboardMarkup(keyboard))
         return SUMMARY
     elif query.data == 'edit_pair':
+        logger.debug(f"User {user_id} editing Pair")
         keyboard = [
             [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
             [InlineKeyboardButton("GBPUSD", callback_data='pair_GBPUSD')],
@@ -798,6 +886,7 @@ async def summary(update, context):
         await query.edit_message_text('Pair?', reply_markup=InlineKeyboardMarkup(keyboard))
         return PAIR
     elif query.data == 'back_to_summary':
+        logger.debug(f"User {user_id} returning to summary")
         summary = format_summary(user_data[auth_key])
         keyboard = [
             [InlineKeyboardButton("Відправити", callback_data='submit_trade')],
@@ -805,6 +894,7 @@ async def summary(update, context):
         ]
         await query.edit_message_text(f"{summary}\n\nПеревір дані. Якщо все правильно, натисни 'Відправити'. Якщо щось не так, натисни 'Змінити'.", reply_markup=InlineKeyboardMarkup(keyboard))
         return SUMMARY
+    logger.debug(f"Unknown callback '{query.data}' in summary for user_id: {user_id}")
     return SUMMARY
 
 # Головна функція для запуску бота
