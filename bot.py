@@ -221,17 +221,20 @@ async def start(update, context):
                 keyboard = [
                     [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
                     [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
-                    [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
+                    [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')],
+                    [InlineKeyboardButton("Повторна авторизація", callback_data='reauthorize')]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
             else:
                 await update.message.reply_text('Помилка: не вдалося знайти базу "Classification". Перевір правильність ID сторінки.')
         else:
+            auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
             keyboard = [
                 [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
                 [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
-                [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
+                [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')],
+                [InlineKeyboardButton("Повторна авторизація", url=auth_url)]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
@@ -520,10 +523,12 @@ async def button(update, context):
 
     # Логіка повернення назад
     elif query.data == 'back_to_start':
+        auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
         keyboard = [
             [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
             [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
-            [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
+            [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')],
+            [InlineKeyboardButton("Повторна авторизація", url=auth_url)]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Привіт! Вибери дію:', reply_markup=reply_markup)
@@ -713,10 +718,12 @@ async def button(update, context):
                 await query.edit_message_text("Помилка при відправці трейду в Notion. Перевір логи.")
         
         if page_id:
+            auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
             keyboard = [
                 [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
                 [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
-                [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
+                [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')],
+                [InlineKeyboardButton("Повторна авторизація", url=auth_url)]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери дію:", reply_markup=reply_markup)
@@ -737,17 +744,21 @@ async def button(update, context):
                     f"Категорія трейду: {trade_class}\n"
                     f"Ризик: {offer_risk}%"
                 )
+                auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
                 keyboard = [
                     [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
                     [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
-                    [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
+                    [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')],
+                    [InlineKeyboardButton("Повторна авторизація", url=auth_url)]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await query.edit_message_text(f"Останній трейд:\n{message}\n\nВибери дію:", reply_markup=reply_markup)
             else:
+                auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
                 keyboard = [
                     [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
-                    [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
+                    [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')],
+                    [InlineKeyboardButton("Повторна авторизація", url=auth_url)]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await query.edit_message_text("Ще немає відправлених трейдів. Вибери дію:", reply_markup=reply_markup)
@@ -776,10 +787,12 @@ async def button(update, context):
             else:
                 message = "Не вдалося отримати останні трейди або їх ще немає."
             
+            auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
             keyboard = [
                 [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
                 [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
-                [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
+                [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')],
+                [InlineKeyboardButton("Повторна авторизація", url=auth_url)]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(message, reply_markup=reply_markup)
