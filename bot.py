@@ -30,7 +30,10 @@ async def reload_user_data():
     global user_data
     conn = heroku3.from_key(HEROKU_API_KEY)
     heroku_app = conn.apps()['tradenotionbot-lg2']
-    user_data = json.loads(heroku_app.config().get('HEROKU_USER_DATA', '{}'))
+    config_vars = heroku_app.config()
+    # Отримуємо HEROKU_USER_DATA або порожній словник, якщо ключа немає
+    user_data_json = config_vars['HEROKU_USER_DATA'] if 'HEROKU_USER_DATA' in config_vars else '{}'
+    user_data = json.loads(user_data_json)
     logger.info(f"Reloaded user_data from Heroku: {json.dumps(user_data, indent=2)}")
 
 # Функція для отримання ID бази "Classification" із батьківської сторінки
