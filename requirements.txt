@@ -1,3 +1,5 @@
 python-telegram-bot
-flask[async]
-hypercorn
+requests
+flask
+gunicorn
+heroku3
