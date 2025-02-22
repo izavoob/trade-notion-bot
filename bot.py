@@ -44,7 +44,7 @@ PAIR_MENU = ReplyKeyboardMarkup([["Обрати Шаблон", "Скасуват
 BACK_CANCEL_MENU = ReplyKeyboardMarkup([["Назад", "Скасувати"]], resize_keyboard=True, one_time_keyboard=True)
 
 # Меню з "Назад", "Скасувати" і "Готово"
-BACK_CANCEL_DONE_MENU = ReplyKeyboardMarkup([["Назад", "Скасувати"], ["Готово"]], resize_keyboard=True, one_time_keyboard=True)
+BACK_CANCEL_DONE_MENU = ReplyKeyboardMarkup([["Назад", "Скасувати"], [" Готово"]], resize_keyboard=True, one_time_keyboard=True)
 
 # Функція для отримання ID бази "Classification"
 def fetch_classification_db_id(page_id, notion_token):
@@ -206,7 +206,7 @@ async def main_menu(update, context):
             [InlineKeyboardButton("XAUUSD", callback_data='pair_XAUUSD')],
             [InlineKeyboardButton("GER40", callback_data='pair_GER40')]
         ]
-        await update.message.reply_text('Pair?', reply_markup=InlineKeyboardMarkup(keyboard), reply_markup_remove=ReplyKeyboardRemove())
+        await update.message.reply_text('Pair?', reply_markup=InlineKeyboardMarkup(keyboard) , reply_markup=ReplyKeyboardRemove())
         return PAIR
     elif text == "Переглянути останній трейд":
         logger.debug(f"User {user_id} selected 'Переглянути останній трейд'")
