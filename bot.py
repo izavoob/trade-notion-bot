@@ -152,7 +152,7 @@ async def restart(update, context):
                 "Щоб використовувати бота:\n"
                 "1. Скопіюй сторінку за посиланням: https://www.notion.so/A-B-C-position-Final-Bot-1a084b079a8280d29d5ecc9316e02c5d\n"
                 "2. Авторизуйся нижче і надай доступ до скопійованої сторінки.\n"
-                "3. Введи ID батьківської сторінки 'A-B-C position Final Bot' (32 символи з URL)."
+                "3. Введи ID батьківської сторінки 'A-B-C position Final Bot' (32 символи з URL). Ось приклад:1a084b079a8280d29d5ecc9316e02c5d"
             )
             auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
             keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
@@ -175,22 +175,22 @@ async def start(update, context):
     async with user_data_lock:
         if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
             instructions = (
-                "Щоб використовувати бота:\n"
+                "**Щоб використовувати бота:**\n"
                 "1. Скопіюй сторінку за посиланням: https://www.notion.so/A-B-C-position-Final-Bot-1a084b079a8280d29d5ecc9316e02c5d\n"
                 "2. Авторизуйся нижче і надай доступ до скопійованої сторінки.\n"
-                "3. Введи ID батьківської сторінки 'A-B-C position Final Bot' (32 символи з URL)."
+                "3. Введи ID батьківської сторінки 'A-B-C position Final Bot. Ось де вона:**1a084b079a8280d29d5ecc9316e02c5d**' (32 символи з URL)."
             )
             auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
             keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await update.message.reply_text(instructions, reply_markup=reply_markup)
+            await update.message.reply_text(instructions, parse_mode='MarkdownV2', reply_markup=reply_markup)
             await context.bot.send_photo(
                 chat_id=update.message.chat_id,
-                photo='AgACAgIAAxkBAAIB82e5q4fWpzE8mPVCJixuypC5LcuwAAL-7DEbFjHJSTMm00ODquyEAQADAgADeAADNgQ'  # Замініть на реальний file_id зображення
+                photo='PHOTO_FILE_ID'  # Замініть на реальний file_id зображення
             )
         elif 'parent_page_id' not in user_data[auth_key]:
-            await update.message.reply_text('Введи ID батьківської сторінки "A-B-C position Final Bot" (32 символи з URL):')
+            await update.message.reply_text('Введи ID батьківської сторінки "A-B-C position Final Bot" (32 символи з URL):', parse_mode='MarkdownV2')
         elif 'classification_db_id' not in user_data[auth_key]:
             classification_db_id = fetch_classification_db_id(user_data[auth_key]['parent_page_id'], user_data[auth_key]['notion_token'])
             if classification_db_id:
@@ -199,20 +199,20 @@ async def start(update, context):
                 heroku_app = conn.apps()['tradenotionbot-lg2']
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
                 keyboard = [
-                    [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
-                    [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
+                    [InlineKeyboardButton("**Додати новий трейд**", callback_data='add_trade')],
+                    [InlineKeyboardButton("**Переглянути останній трейд**", callback_data='view_last_trade')]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
+                await update.message.reply_text('**Привіт! Вибери дію:**', parse_mode='MarkdownV2', reply_markup=reply_markup)
             else:
-                await update.message.reply_text('Помилка: не вдалося знайти базу "Classification". Перевір правильність ID сторінки.')
+                await update.message.reply_text('Помилка: не вдалося знайти базу "Classification". Перевір правильність ID сторінки.', parse_mode='MarkdownV2')
         else:
             keyboard = [
-                [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
-                [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
+                [InlineKeyboardButton("**Додати новий трейд**", callback_data='add_trade')],
+                [InlineKeyboardButton("**Переглянути останній трейд**", callback_data='view_last_trade')]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
+            await update.message.reply_text('**Привіт! Вибери дію:**', parse_mode='MarkdownV2', reply_markup=reply_markup)
 
 # Обробка текстового вводу
 async def handle_text(update, context):
