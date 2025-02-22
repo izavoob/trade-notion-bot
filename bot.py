@@ -309,10 +309,10 @@ async def handle_text(update, context):
             else:
                 await update.message.reply_text("Ще немає відправлених трейдів.", reply_markup=MAIN_MENU)
         elif text == "5 останніх трейдів":
-            trades = fetch_last_5_trades(user_data[auth_key]['classification_db_id'], user_data[auth_key]['notion_token'])
+            trades = fetch_page_properties(user_data[auth_key]['classification_db_id'], user_data[auth_key]['notion_token'])
             if trades:
                 message = "Останні 5 трейдів:\n\n"
-                for trade in trades:
+                for trade in trades[:5]:  # Обмежуємо до 5
                     num = trade['Num'] if trade['Num'] is not None else "Немає даних"
                     date = trade['Date'] if trade['Date'] is not None else "Немає даних"
                     score = trade['Score'] if trade['Score'] is not None else "Немає даних"
@@ -333,9 +333,14 @@ async def handle_text(update, context):
             keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text("Натисни для повторної авторизації:", reply_markup=reply_markup)
+        elif text == "Обрати Шаблон":
+            await update.message.reply_text("Шаблони в розробці!", reply_markup=MAIN_MENU)
+            if 'menu_message' in context.user_data:
+                await context.user_data['menu_message'].delete()
+                del context.user_data['menu_message']
         # Обробка "Скасувати"
         elif text == "Скасувати" and 'Pair' in user_data[auth_key]:
-            for key in ['Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
+            for key in ['Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A',
                         'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR', 'waiting_for_rr']:
                 if key in user_data[auth_key]:
                     del user_data[auth_key][key]
@@ -347,7 +352,14 @@ async def handle_text(update, context):
                 del context.user_data['menu_message']
         # Обробка "Назад"
         elif text == "Назад" and 'Pair' in user_data[auth_key]:
-            if 'waiting_for_rr' in user_data[auth_key]:
+            if 'RR' in user_data[auth_key]:
+                del user_data[auth_key]['RR']
+                user_data[auth_key]['waiting_for_rr'] = True
+                await update.message.reply_text('Введи RR вручну (наприклад, 2.5):', reply_markup=ReplyKeyboardRemove())
+                if 'menu_message' in context.user_data:
+                    await context.user_data['menu_message'].delete()
+                    del context.user_data['menu_message']
+            elif 'waiting_for_rr' in user_data[auth_key]:
                 del user_data[auth_key]['waiting_for_rr']
                 keyboard = [
                     [InlineKeyboardButton("LTF/Lunch Manipulation", callback_data='slposition_LTF/Lunch Manipulation')],
@@ -359,13 +371,6 @@ async def handle_text(update, context):
                 if 'menu_message' in context.user_data:
                     await context.user_data['menu_message'].delete()
                 context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
-            elif 'RR' in user_data[auth_key]:
-                del user_data[auth_key]['RR']
-                user_data[auth_key]['waiting_for_rr'] = True
-                await update.message.reply_text('Введи RR вручну (наприклад, 2.5):', reply_markup=ReplyKeyboardRemove())
-                if 'menu_message' in context.user_data:
-                    await context.user_data['menu_message'].delete()
-                    del context.user_data['menu_message']
             elif 'SL Position' in user_data[auth_key]:
                 del user_data[auth_key]['SL Position']
                 keyboard = [
@@ -505,11 +510,12 @@ async def handle_text(update, context):
                 context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=PAIR_MENU)
         # Обробка "Готово" для Trigger і VC
         elif text == "Готово" and 'Pair' in user_data[auth_key]:
-            if 'Point A' in user_data[auth_key] and 'Trigger' not in user_data[auth_key]:
+            if 'Trigger' not in user_data[auth_key] and 'Point A' in user_data[auth_key]:
                 await update.message.reply_text("Обери хоча б один Trigger!")
             elif 'Trigger' in user_data[auth_key] and not user_data[auth_key]['Trigger']:
                 await update.message.reply_text("Обери хоча б один Trigger!")
             elif 'Trigger' in user_data[auth_key] and 'VC' not in user_data[auth_key]:
+                user_data[auth_key]['VC'] = []
                 keyboard = [
                     [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
                     [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
@@ -540,7 +546,7 @@ async def handle_text(update, context):
                 rr = float(text)
                 user_data[auth_key]['RR'] = rr
                 del user_data[auth_key]['waiting_for_rr']
-                required_keys = ['Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
+                required_keys = ['Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A',
                                 'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']
                 missing_keys = [key for key in required_keys if key not in user_data[auth_key]]
                 if missing_keys:
@@ -825,7 +831,7 @@ async def button(update, context):
             conn = heroku3.from_key(HEROKU_API_KEY)
             heroku_app = conn.apps()['tradenotionbot-lg2']
             heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-            for key in ['Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
+            for key in ['Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A',
                         'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR', 'waiting_for_rr']:
                 if key in user_data[auth_key]:
                     del user_data[auth_key][key]
