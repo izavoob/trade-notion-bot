@@ -327,17 +327,18 @@ async def button(update, context):
         await query.edit_message_text('Point A?', reply_markup=reply_markup)
     
     elif query.data.startswith('pointa_'):
-        user_data[auth_key]['Point A'] = query.data.split('_')[1]
-        logger.info(f"Updated Point A for user {user_id}: {user_data[auth_key]['Point A']}")
-        keyboard = [
-            [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
-            [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
-            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')],
-            [InlineKeyboardButton("Готово", callback_data='trigger_done')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_delivery')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
+    user_data[auth_key]['Point A'] = query.data.split('_')[1]
+    logger.info(f"Updated Point A for user {user_id}: {user_data[auth_key]['Point A']}")
+    user_data[auth_key]['Trigger'] = []  # Очищаємо Trigger перед початком вибору
+    keyboard = [
+        [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
+        [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
+        [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')],
+        [InlineKeyboardButton("Готово", callback_data='trigger_done')],
+        [InlineKeyboardButton("Назад", callback_data='back_to_delivery')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data.startswith('trigger_') and query.data != 'trigger_done':
         trigger_value = query.data.split('_')[1]
@@ -391,19 +392,19 @@ async def button(update, context):
         await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'vc_done':
-        if not user_data[auth_key]['VC']:
-            await query.edit_message_text("Обери хоча б один VC!")
-            return
-        logger.info(f"VC selection completed for user {user_id}: {user_data[auth_key]['VC']}")
-        keyboard = [
-            [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
-            [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
-            [InlineKeyboardButton("SNR", callback_data='entrymodel_SNR')],
-            [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_trigger')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
+    if not user_data[auth_key]['VC']:
+        await query.edit_message_text("Обери хоча б один VC!")
+        return
+    logger.info(f"VC selection completed for user {user_id}: {user_data[auth_key]['VC']}")
+    keyboard = [
+        [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
+        [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
+        [InlineKeyboardButton("SNR", callback_data='entrymodel_SNR')],
+        [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')],
+        [InlineKeyboardButton("Назад", callback_data='back_to_vc')]  # Змінено з back_to_trigger на back_to_vc
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
     
     elif query.data.startswith('entrymodel_'):
         user_data[auth_key]['Entry Model'] = query.data.split('_')[1]
@@ -531,15 +532,15 @@ async def button(update, context):
         await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'back_to_vc':
-        keyboard = [
-            [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
-            [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
-            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
-            [InlineKeyboardButton("Готово", callback_data='vc_done')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_trigger')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
+    keyboard = [
+        [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
+        [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
+        [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
+        [InlineKeyboardButton("Готово", callback_data='vc_done')],
+        [InlineKeyboardButton("Назад", callback_data='back_to_trigger')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'back_to_entrymodel':
         keyboard = [
