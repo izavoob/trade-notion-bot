@@ -22,7 +22,7 @@ CLIENT_ID = os.getenv('NOTION_CLIENT_ID')
 CLIENT_SECRET = os.getenv('NOTION_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('REDIRECT_URI')  # Наприклад, https://tradenotionbot-lg2.herokuapp.com/callback
 HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
-WEBHOOK_URL = f"https://tradenotionbot-lg2.herokuapp.com/webhook"
+WEBHOOK_URL = f"https://tradenotionbot-lg2-be6effb379bc.herokuapp.com/webhook"
 
 # Ініціалізація бота
 application = Application.builder().token(TELEGRAM_TOKEN).build()
