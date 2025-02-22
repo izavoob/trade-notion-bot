@@ -27,65 +27,36 @@ HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
 user_data_lock = asyncio.Lock()
 
-# Визначення станів (виправлено range(14) на range(15))
+# Визначення станів
 START, PAIR, SESSION, CONTEXT, TEST_POI, DELIVERY, POINT_A, TRIGGER, VC, ENTRY_MODEL, ENTRY_TF, POINT_B, SL_POSITION, RR, SUMMARY = range(15)
 
 # Головне меню
 MAIN_MENU = ReplyKeyboardMarkup(
-    [
-        ["Додати новий трейд", "Переглянути останній трейд"],
-        ["5 останніх трейдів", "Повторна авторизація"]
-    ],
+    [["Додати новий трейд", "Переглянути останній трейд"], ["5 останніх трейдів", "Повторна авторизація"]],
     resize_keyboard=True,
     one_time_keyboard=False
 )
 
 # Меню для етапу Pair
-PAIR_MENU = ReplyKeyboardMarkup(
-    [["Обрати Шаблон", "Скасувати"]],
-    resize_keyboard=True,
-    one_time_keyboard=False
-)
+PAIR_MENU = ReplyKeyboardMarkup([["Обрати Шаблон", "Скасувати"]], resize_keyboard=True, one_time_keyboard=False)
 
 # Меню з "Назад" і "Скасувати"
-BACK_CANCEL_MENU = ReplyKeyboardMarkup(
-    [["Назад", "Скасувати"]],
-    resize_keyboard=True,
-    one_time_keyboard=False
-)
+BACK_CANCEL_MENU = ReplyKeyboardMarkup([["Назад", "Скасувати"]], resize_keyboard=True, one_time_keyboard=False)
 
 # Меню з "Назад", "Скасувати" і "Готово"
-BACK_CANCEL_DONE_MENU = ReplyKeyboardMarkup(
-    [["Назад", "Скасувати"], ["Готово"]],
-    resize_keyboard=True,
-    one_time_keyboard=False
-)
+BACK_CANCEL_DONE_MENU = ReplyKeyboardMarkup([["Назад", "Скасувати"], ["Готово"]], resize_keyboard=True, one_time_keyboard=False)
 
 # Функція для отримання ID бази "Classification"
 def fetch_classification_db_id(page_id, notion_token):
     url = f"https://api.notion.com/v1/blocks/{page_id}/children"
-    headers = {
-        "Authorization": f"Bearer {notion_token}",
-        "Content-Type": "application/json",
-        "Notion-Version": "2022-06-28"
-    }
+    headers = {"Authorization": f"Bearer {notion_token}", "Content-Type": "application/json", "Notion-Version": "2022-06-28"}
     response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        return None
-    data = response.json()
-    for block in data.get("results", []):
-        if block["type"] == "child_database" and "Classification" in block["child_database"]["title"]:
-            return block["id"]
-    return None
+    return response.json().get("results", [{}])[0].get("id") if response.status_code == 200 and "Classification" in response.text else None
 
 # Функція для створення сторінки в Notion
 def create_notion_page(user_id):
     url = 'https://api.notion.com/v1/pages'
-    headers = {
-        'Authorization': f'Bearer {user_data[user_id]["notion_token"]}',
-        'Content-Type': 'application/json',
-        'Notion-Version': "2022-06-28"
-    }
+    headers = {'Authorization': f'Bearer {user_data[user_id]["notion_token"]}', 'Content-Type': 'application/json', 'Notion-Version': "2022-06-28"}
     trigger_values = user_data[user_id].get('Trigger', [])
     vc_values = user_data[user_id].get('VC', [])
     current_date = datetime.now().strftime("%Y-%m-%d")
@@ -115,46 +86,53 @@ def create_notion_page(user_id):
     }
     
     response = requests.post(url, json=payload, headers=headers)
-    if response.status_code == 200:
-        page_id = response.json()['id']
-        return page_id, new_num
-    return None, None
+    return response.json()['id'], new_num if response.status_code == 200 else (None, None)
 
 # Функція для отримання максимального Num
 def get_max_num(classification_db_id, notion_token):
     url = f"https://api.notion.com/v1/databases/{classification_db_id}/query"
-    headers = {
-        "Authorization": f"Bearer {notion_token}",
-        "Content-Type": "application/json",
-        "Notion-Version": "2022-06-28"
-    }
+    headers = {"Authorization": f"Bearer {notion_token}", "Content-Type": "application/json", "Notion-Version": "2022-06-28"}
     payload = {"sorts": [{"property": "Num", "direction": "descending"}], "page_size": 1}
     response = requests.post(url, json=payload, headers=headers)
-    if response.status_code != 200:
-        return 0
-    data = response.json()
-    results = data.get("results", [])
-    return results[0]["properties"].get("Num", {}).get("number", 0) if results else 0
+    return response.json().get("results", [{}])[0]["properties"].get("Num", {}).get("number", 0) if response.status_code == 200 else 0
 
 # Функція для отримання властивостей сторінки з Notion
 def fetch_page_properties(page_id, notion_token):
     url = f"https://api.notion.com/v1/pages/{page_id}"
-    headers = {
-        "Authorization": f"Bearer {notion_token}",
-        "Content-Type": "application/json",
-        "Notion-Version": "2022-06-28"
-    }
+    headers = {"Authorization": f"Bearer {notion_token}", "Content-Type": "application/json", "Notion-Version": "2022-06-28"}
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
         return None
     data = response.json()
     properties = data.get('properties', {})
-    num = properties.get('Num', {}).get('number', "Немає даних")
-    date = properties.get('Date', {}).get('date', {}).get('start', "Немає даних")
-    score = properties.get('Score', {}).get('formula', {}).get('number', "Немає даних")
-    trade_class = properties.get('Trade Class', {}).get('formula', {}).get('string', "Немає даних")
-    offer_risk = properties.get('Offer Risk', {}).get('formula', {}).get('number', "Немає даних")
-    return {'Num': num, 'Date': date, 'Score': score, 'Trade Class': trade_class, 'Offer Risk': offer_risk}
+    return {
+        'Num': properties.get('Num', {}).get('number', "Немає даних"),
+        'Date': properties.get('Date', {}).get('date', {}).get('start', "Немає даних"),
+        'Score': properties.get('Score', {}).get('formula', {}).get('number', "Немає даних"),
+        'Trade Class': properties.get('Trade Class', {}).get('formula', {}).get('string', "Немає даних"),
+        'Offer Risk': properties.get('Offer Risk', {}).get('formula', {}).get('number', "Немає даних")
+    }
+
+# Функція для отримання 5 останніх трейдів з Notion
+def fetch_last_five_trades(classification_db_id, notion_token):
+    url = f"https://api.notion.com/v1/databases/{classification_db_id}/query"
+    headers = {"Authorization": f"Bearer {notion_token}", "Content-Type": "application/json", "Notion-Version": "2022-06-28"}
+    payload = {"sorts": [{"property": "Num", "direction": "descending"}], "page_size": 5}
+    response = requests.post(url, json=payload, headers=headers)
+    if response.status_code != 200:
+        return None
+    results = response.json().get("results", [])
+    trades = []
+    for result in results:
+        props = result.get("properties", {})
+        trades.append({
+            'Num': props.get('Num', {}).get('number', "Немає даних"),
+            'Date': props.get('Date', {}).get('date', {}).get('start', "Немає даних"),
+            'Score': props.get('Score', {}).get('formula', {}).get('number', "Немає даних"),
+            'Trade Class': props.get('Trade Class', {}).get('formula', {}).get('string', "Немає даних"),
+            'Offer Risk': props.get('Offer Risk', {}).get('formula', {}).get('number', "Немає даних")
+        })
+    return trades
 
 # Форматування підсумку
 def format_summary(data):
@@ -226,7 +204,6 @@ async def main_menu(update, context):
             [InlineKeyboardButton("GER40", callback_data='pair_GER40')]
         ]
         await update.message.reply_text('Pair?', reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=PAIR_MENU)
         return PAIR
     elif text == "Переглянути останній трейд":
         async with user_data_lock:
@@ -244,8 +221,21 @@ async def main_menu(update, context):
                 await update.message.reply_text("Ще немає відправлених трейдів.", reply_markup=MAIN_MENU)
         return START
     elif text == "5 останніх трейдів":
-        # Потрібна функція для отримання 5 трейдів із Notion, тут спрощено
-        await update.message.reply_text("Функція в розробці!", reply_markup=MAIN_MENU)
+        async with user_data_lock:
+            trades = fetch_last_five_trades(user_data[auth_key]['classification_db_id'], user_data[auth_key]['notion_token'])
+            if trades:
+                message = "Останні 5 трейдів:\n"
+                for trade in trades:
+                    message += (
+                        f"Трейд №: {trade['Num']}\n"
+                        f"Доданий: {trade['Date']}\n"
+                        f"Оцінка: {trade['Score']}\n"
+                        f"Категорія: {trade['Trade Class']}\n"
+                        f"Ризик: {trade['Offer Risk']}%\n\n"
+                    )
+                await update.message.reply_text(message.strip(), reply_markup=MAIN_MENU)
+            else:
+                await update.message.reply_text("Не вдалося отримати трейди з Notion.", reply_markup=MAIN_MENU)
         return START
     elif text == "Повторна авторизація":
         auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
@@ -270,7 +260,6 @@ async def pair(update, context):
         [InlineKeyboardButton("New York", callback_data='session_New York')]
     ]
     await query.edit_message_text('Session?', reply_markup=InlineKeyboardMarkup(keyboard))
-    await query.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
     return SESSION
 
 async def pair_text(update, context):
@@ -299,7 +288,6 @@ async def session(update, context):
         [InlineKeyboardButton("Neutral Context", callback_data='context_Neutral Context')]
     ]
     await query.edit_message_text('Context?', reply_markup=InlineKeyboardMarkup(keyboard))
-    await query.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
     return CONTEXT
 
 async def session_text(update, context):
@@ -313,7 +301,6 @@ async def session_text(update, context):
             [InlineKeyboardButton("GER40", callback_data='pair_GER40')]
         ]
         await update.message.reply_text('Pair?', reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=PAIR_MENU)
         return PAIR
     elif text == "Скасувати":
         async with user_data_lock:
@@ -335,7 +322,6 @@ async def context(update, context):
         [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')]
     ]
     await query.edit_message_text('Test POI?', reply_markup=InlineKeyboardMarkup(keyboard))
-    await query.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
     return TEST_POI
 
 async def context_text(update, context):
@@ -349,7 +335,6 @@ async def context_text(update, context):
             [InlineKeyboardButton("New York", callback_data='session_New York')]
         ]
         await update.message.reply_text('Session?', reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
         return SESSION
     elif text == "Скасувати":
         async with user_data_lock:
@@ -371,7 +356,6 @@ async def test_poi(update, context):
         [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')]
     ]
     await query.edit_message_text('Delivery to POI?', reply_markup=InlineKeyboardMarkup(keyboard))
-    await query.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
     return DELIVERY
 
 async def test_poi_text(update, context):
@@ -383,7 +367,6 @@ async def test_poi_text(update, context):
             [InlineKeyboardButton("Neutral Context", callback_data='context_Neutral Context')]
         ]
         await update.message.reply_text('Context?', reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
         return CONTEXT
     elif text == "Скасувати":
         async with user_data_lock:
@@ -407,7 +390,6 @@ async def delivery(update, context):
         [InlineKeyboardButton("SNR", callback_data='pointa_SNR')]
     ]
     await query.edit_message_text('Point A?', reply_markup=InlineKeyboardMarkup(keyboard))
-    await query.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
     return POINT_A
 
 async def delivery_text(update, context):
@@ -418,7 +400,6 @@ async def delivery_text(update, context):
             [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')]
         ]
         await update.message.reply_text('Test POI?', reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
         return TEST_POI
     elif text == "Скасувати":
         async with user_data_lock:
@@ -442,7 +423,6 @@ async def point_a(update, context):
         [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')]
     ]
     await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=InlineKeyboardMarkup(keyboard))
-    await query.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_DONE_MENU)
     return TRIGGER
 
 async def point_a_text(update, context):
@@ -453,7 +433,6 @@ async def point_a_text(update, context):
             [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')]
         ]
         await update.message.reply_text('Delivery to POI?', reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
         return DELIVERY
     elif text == "Скасувати":
         async with user_data_lock:
@@ -494,7 +473,6 @@ async def trigger_text(update, context):
             [InlineKeyboardButton("SNR", callback_data='pointa_SNR')]
         ]
         await update.message.reply_text('Point A?', reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
         return POINT_A
     elif text == "Скасувати":
         async with user_data_lock:
@@ -513,7 +491,6 @@ async def trigger_text(update, context):
             [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')]
         ]
         await update.message.reply_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_DONE_MENU)
         return VC
     return TRIGGER
 
@@ -550,7 +527,6 @@ async def vc_text(update, context):
             [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')]
         ]
         await update.message.reply_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_DONE_MENU)
         return TRIGGER
     elif text == "Скасувати":
         async with user_data_lock:
@@ -569,7 +545,6 @@ async def vc_text(update, context):
             [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')]
         ]
         await update.message.reply_text('Entry Model?', reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
         return ENTRY_MODEL
     return VC
 
@@ -589,7 +564,6 @@ async def entry_model(update, context):
         [InlineKeyboardButton("4H", callback_data='entrytf_4H')]
     ]
     await query.edit_message_text('Entry TF?', reply_markup=InlineKeyboardMarkup(keyboard))
-    await query.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
     return ENTRY_TF
 
 async def entry_model_text(update, context):
@@ -604,7 +578,6 @@ async def entry_model_text(update, context):
             user_id = str(update.message.from_user.id)
             auth_key = f"{user_id}user"
             await update.message.reply_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_DONE_MENU)
         return VC
     elif text == "Скасувати":
         async with user_data_lock:
@@ -626,7 +599,6 @@ async def entry_tf(update, context):
         [InlineKeyboardButton("FVG", callback_data='pointb_FVG')]
     ]
     await query.edit_message_text('Point B?', reply_markup=InlineKeyboardMarkup(keyboard))
-    await query.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
     return POINT_B
 
 async def entry_tf_text(update, context):
@@ -639,7 +611,6 @@ async def entry_tf_text(update, context):
             [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')]
         ]
         await update.message.reply_text('Entry Model?', reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
         return ENTRY_MODEL
     elif text == "Скасувати":
         async with user_data_lock:
@@ -662,7 +633,6 @@ async def point_b(update, context):
         [InlineKeyboardButton("4H Raid", callback_data='slposition_4H Raid')]
     ]
     await query.edit_message_text('SL Position?', reply_markup=InlineKeyboardMarkup(keyboard))
-    await query.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
     return SL_POSITION
 
 async def point_b_text(update, context):
@@ -676,7 +646,6 @@ async def point_b_text(update, context):
             [InlineKeyboardButton("4H", callback_data='entrytf_4H')]
         ]
         await update.message.reply_text('Entry TF?', reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
         return ENTRY_TF
     elif text == "Скасувати":
         async with user_data_lock:
@@ -704,7 +673,6 @@ async def sl_position_text(update, context):
             [InlineKeyboardButton("FVG", callback_data='pointb_FVG')]
         ]
         await update.message.reply_text('Point B?', reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
         return POINT_B
     elif text == "Скасувати":
         async with user_data_lock:
@@ -727,10 +695,7 @@ async def rr(update, context):
             [InlineKeyboardButton("Відправити", callback_data='submit_trade')],
             [InlineKeyboardButton("Змінити", callback_data='edit_trade')]
         ]
-        await update.message.reply_text(
-            f"{summary}\n\nПеревір дані. Якщо все правильно, натисни 'Відправити'. Якщо щось не так, натисни 'Змінити'.",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await update.message.reply_text(f"{summary}\n\nПеревір дані. Якщо все правильно, натисни 'Відправити'. Якщо щось не так, натисни 'Змінити'.", reply_markup=InlineKeyboardMarkup(keyboard))
         return SUMMARY
     except ValueError:
         await update.message.reply_text("Помилка, введіть число (наприклад, 2.5):")
@@ -748,7 +713,6 @@ async def rr_text(update, context):
             [InlineKeyboardButton("4H Raid", callback_data='slposition_4H Raid')]
         ]
         await update.message.reply_text('SL Position?', reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
         return SL_POSITION
     elif text == "Скасувати":
         async with user_data_lock:
@@ -819,7 +783,6 @@ async def summary(update, context):
         keyboard = [
             [InlineKeyboardButton("Pair", callback_data='edit_pair')],
             [InlineKeyboardButton("Session", callback_data='edit_session')],
-            # Додайте інші параметри для редагування за потреби
             [InlineKeyboardButton("Повернутися", callback_data='back_to_summary')]
         ]
         await query.edit_message_text("Який параметр хочеш змінити?", reply_markup=InlineKeyboardMarkup(keyboard))
@@ -833,7 +796,6 @@ async def summary(update, context):
             [InlineKeyboardButton("GER40", callback_data='pair_GER40')]
         ]
         await query.edit_message_text('Pair?', reply_markup=InlineKeyboardMarkup(keyboard))
-        await query.message.reply_text('Вибір:', reply_markup=PAIR_MENU)
         return PAIR
     elif query.data == 'back_to_summary':
         summary = format_summary(user_data[auth_key])
@@ -841,10 +803,7 @@ async def summary(update, context):
             [InlineKeyboardButton("Відправити", callback_data='submit_trade')],
             [InlineKeyboardButton("Змінити", callback_data='edit_trade')]
         ]
-        await query.edit_message_text(
-            f"{summary}\n\nПеревір дані. Якщо все правильно, натисни 'Відправити'. Якщо щось не так, натисни 'Змінити'.",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await query.edit_message_text(f"{summary}\n\nПеревір дані. Якщо все правильно, натисни 'Відправити'. Якщо щось не так, натисни 'Змінити'.", reply_markup=InlineKeyboardMarkup(keyboard))
         return SUMMARY
     return SUMMARY
 
