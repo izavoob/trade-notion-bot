@@ -15,8 +15,8 @@ async def start(update, context):
     user_id = str(update.message.from_user.id)
     logger.info(f"Start command received from user {user_id}")
     keyboard = [
-        [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
-        [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
+        [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade_test')],
+        [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade_test')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
@@ -28,10 +28,10 @@ async def button(update, context):
     logger.info(f"Button callback received from user {user_id}: {query.data}")
     await query.answer()
     
-    if query.data == 'add_trade':
+    if query.data == 'add_trade_test':
         logger.info(f"Processing add_trade for user {user_id}")
         await query.edit_message_text('Pair?')
-    elif query.data == 'view_last_trade':
+    elif query.data == 'view_last_trade_test':
         logger.info(f"Processing view_last_trade for user {user_id}")
         await query.edit_message_text('Перегляд останнього трейду.')
 
