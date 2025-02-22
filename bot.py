@@ -29,10 +29,17 @@ logger.info(f"Initial user_data loaded from HEROKU_USER_DATA: {json.dumps(user_d
 # Головне меню
 MAIN_MENU = ReplyKeyboardMarkup(
     [
-        ["Додати новий трейд"],
-        ["Переглянути останній трейд"],
-        ["5 останніх трейдів"],
-        ["Повторна авторизація"]
+        ["Додати новий трейд", "Переглянути останній трейд"],
+        ["5 останніх трейдів", "Повторна авторизація"]
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=False
+)
+
+# Меню для етапу Pair
+PAIR_MENU = ReplyKeyboardMarkup(
+    [
+        ["Обрати Шаблон", "Скасувати"]
     ],
     resize_keyboard=True,
     one_time_keyboard=False
@@ -190,39 +197,6 @@ def fetch_page_properties(page_id, notion_token):
         'Offer Risk': offer_risk
     }
 
-# Функція для отримання останніх 5 трейдів із бази Notion
-def fetch_last_5_trades(classification_db_id, notion_token):
-    logger.debug(f"Fetching last 5 trades from database {classification_db_id}")
-    url = f"https://api.notion.com/v1/databases/{classification_db_id}/query"
-    headers = {
-        "Authorization": f"Bearer {notion_token}",
-        "Content-Type": "application/json",
-        "Notion-Version": "2022-06-28"
-    }
-    payload = {
-        "sorts": [{"timestamp": "created_time", "direction": "descending"}],
-        "page_size": 5
-    }
-    response = requests.post(url, json=payload, headers=headers)
-    if response.status_code != 200:
-        logger.error(f"Failed to fetch trades: {response.status_code} - {response.text}")
-        return None
-    data = response.json()
-    trades = []
-    for page in data.get("results", []):
-        page_id = page["id"]
-        properties = fetch_page_properties(page_id, notion_token)
-        if properties:
-            trades.append({
-                "Num": properties["Num"],
-                "Date": properties["Date"],
-                "Score": properties["Score"],
-                "Trade Class": properties["Trade Class"],
-                "Offer Risk": properties["Offer Risk"]
-            })
-    logger.info(f"Retrieved {len(trades)} trades")
-    return trades
-
 # Форматування підсумку
 def format_summary(data):
     trigger_str = ", ".join(data.get('Trigger', [])) if isinstance(data.get('Trigger'), list) else data.get('Trigger', '')
@@ -315,7 +289,7 @@ async def handle_text(update, context):
             await update.message.reply_text('Pair?', reply_markup=reply_markup)
             if 'menu_message' in context.user_data:
                 await context.user_data['menu_message'].delete()
-            context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
+            context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=PAIR_MENU)
         elif text == "Переглянути останній трейд":
             if 'last_trades' in user_data[auth_key] and user_data[auth_key]['last_trades']:
                 last_trade = user_data[auth_key]['last_trades'][0]['properties']
@@ -351,9 +325,9 @@ async def handle_text(update, context):
                         f"Категорія трейду: {trade_class}\n"
                         f"Ризик: {offer_risk}%\n\n"
                     )
+                await update.message.reply_text(message, reply_markup=MAIN_MENU)
             else:
-                message = "Не вдалося отримати останні трейди або їх ще немає."
-            await update.message.reply_text(message, reply_markup=MAIN_MENU)
+                await update.message.reply_text("Не вдалося отримати останні трейди або їх ще немає.", reply_markup=MAIN_MENU)
         elif text == "Повторна авторизація":
             auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
             keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
@@ -528,7 +502,7 @@ async def handle_text(update, context):
                 await update.message.reply_text('Pair?', reply_markup=reply_markup)
                 if 'menu_message' in context.user_data:
                     await context.user_data['menu_message'].delete()
-                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=BACK_CANCEL_MENU)
+                context.user_data['menu_message'] = await update.message.reply_text('Вибір:', reply_markup=PAIR_MENU)
         # Обробка "Готово" для Trigger і VC
         elif text == "Готово" and 'Pair' in user_data[auth_key]:
             if 'Point A' in user_data[auth_key] and 'Trigger' not in user_data[auth_key]:
@@ -633,7 +607,7 @@ async def button(update, context):
         await query.edit_message_text('Pair?', reply_markup=reply_markup)
         if 'menu_message' in context.user_data:
             await context.user_data['menu_message'].delete()
-        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=PAIR_MENU)
     
     elif query.data.startswith('pair_'):
         user_data[auth_key]['Pair'] = query.data.split('_')[1]
@@ -908,7 +882,7 @@ async def button(update, context):
         await query.edit_message_text('Pair?', reply_markup=reply_markup)
         if 'menu_message' in context.user_data:
             await context.user_data['menu_message'].delete()
-        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=BACK_CANCEL_MENU)
+        context.user_data['menu_message'] = await context.bot.send_message(chat_id=query.message.chat_id, text='Вибір:', reply_markup=PAIR_MENU)
     
     elif query.data == 'edit_session':
         keyboard = [
