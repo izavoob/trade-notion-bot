@@ -6,6 +6,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 import heroku3
 import asyncio
+from datetime import datetime
 
 # Налаштування логування
 logging.basicConfig(
@@ -46,7 +47,7 @@ def fetch_classification_db_id(page_id, notion_token):
     logger.error("Classification database not found on parent page.")
     return None
 
-# Функція для створення сторінки в Notion (повертає ID сторінки)
+# Функція для створення сторінки в Notion із датою та назвою "Trade"
 def create_notion_page(user_id):
     logger.debug(f"Starting create_notion_page for user {user_id}")
     url = 'https://api.notion.com/v1/pages'
@@ -58,9 +59,12 @@ def create_notion_page(user_id):
     
     trigger_values = user_data[user_id].get('Trigger', [])
     vc_values = user_data[user_id].get('VC', [])
+    current_date = datetime.now().strftime("%B %d, %Y")  # Формат: February 11, 2025
     payload = {
         'parent': {'database_id': user_data[user_id]['classification_db_id']},
         'properties': {
+            'Name': {'title': [{'text': {'content': 'Trade'}}]},  # Назва "Trade"
+            'Date': {'date': {'start': current_date}},  # Додаємо дату
             'Pair': {'select': {'name': user_data[user_id]['Pair']}},
             'Session': {'select': {'name': user_data[user_id]['Session']}},
             'Context': {'select': {'name': user_data[user_id]['Context']}},
@@ -106,7 +110,6 @@ def fetch_page_properties(page_id, notion_token):
     data = response.json()
     properties = data.get('properties', {})
     
-    # Витягуємо Score (formula як number), Trade Class (formula як string), Offer Risk (formula як number)
     score = properties.get('Score', {}).get('formula', {}).get('number', None)
     trade_class = properties.get('Trade Class', {}).get('formula', {}).get('string', None)
     offer_risk = properties.get('Offer Risk', {}).get('formula', {}).get('number', None)
@@ -117,6 +120,38 @@ def fetch_page_properties(page_id, notion_token):
         'Trade Class': trade_class,
         'Offer Risk': offer_risk
     }
+
+# Функція для отримання останніх 5 трейдів із бази Notion
+def fetch_last_5_trades(classification_db_id, notion_token):
+    logger.debug(f"Fetching last 5 trades from database {classification_db_id}")
+    url = f"https://api.notion.com/v1/databases/{classification_db_id}/query"
+    headers = {
+        "Authorization": f"Bearer {notion_token}",
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28"
+    }
+    payload = {
+        "sorts": [{"property": "Created time", "direction": "descending"}],
+        "page_size": 5
+    }
+    response = requests.post(url, json=payload, headers=headers)
+    if response.status_code != 200:
+        logger.error(f"Failed to fetch trades: {response.status_code} - {response.text}")
+        return None
+    data = response.json()
+    trades = []
+    for page in data.get("results", []):
+        page_id = page["id"]
+        properties = fetch_page_properties(page_id, notion_token)
+        if properties:
+            trades.append({
+                "id": page_id,
+                "Score": properties["Score"],
+                "Trade Class": properties["Trade Class"],
+                "Offer Risk": properties["Offer Risk"]
+            })
+    logger.info(f"Retrieved {len(trades)} trades")
+    return trades
 
 # Початок роботи бота
 async def start(update, context):
@@ -146,7 +181,8 @@ async def start(update, context):
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
                 keyboard = [
                     [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
-                    [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
+                    [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
+                    [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
@@ -155,7 +191,8 @@ async def start(update, context):
         else:
             keyboard = [
                 [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
-                [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
+                [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
+                [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
@@ -446,7 +483,8 @@ async def button(update, context):
     elif query.data == 'back_to_start':
         keyboard = [
             [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
-            [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
+            [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
+            [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Привіт! Вибери дію:', reply_markup=reply_markup)
@@ -567,13 +605,13 @@ async def button(update, context):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Point B?', reply_markup=reply_markup)
 
-    # Оновлена логіка підтвердження трейду
+    # Логіка підтвердження трейду
     elif query.data == 'submit_trade':
         async with user_data_lock:
             page_id = create_notion_page(auth_key)
             if page_id:
-                # Зберігаємо останній трейд перед очищенням
                 user_data[auth_key]['last_trade'] = {
+                    'id': page_id,
                     'Pair': user_data[auth_key].get('Pair'),
                     'Session': user_data[auth_key].get('Session'),
                     'Context': user_data[auth_key].get('Context'),
@@ -588,13 +626,19 @@ async def button(update, context):
                     'SL Position': user_data[auth_key].get('SL Position'),
                     'RR': user_data[auth_key].get('RR')
                 }
-                # Відправляємо перше повідомлення
+                if 'last_trades' not in user_data[auth_key]:
+                    user_data[auth_key]['last_trades'] = []
+                user_data[auth_key]['last_trades'].insert(0, {
+                    'id': page_id,
+                    'properties': fetch_page_properties(page_id, user_data[auth_key]['notion_token'])
+                })
+                if len(user_data[auth_key]['last_trades']) > 5:
+                    user_data[auth_key]['last_trades'] = user_data[auth_key]['last_trades'][:5]
+
                 await query.edit_message_text("Трейд успішно додано до Notion!")
                 
-                # Затримка 5 секунд для обробки формул у Notion
                 await asyncio.sleep(5)
                 
-                # Отримуємо властивості сторінки
                 properties = fetch_page_properties(page_id, user_data[auth_key]['notion_token'])
                 if properties:
                     score = properties['Score'] if properties['Score'] is not None else "Немає даних"
@@ -602,20 +646,20 @@ async def button(update, context):
                     offer_risk = properties['Offer Risk'] if properties['Offer Risk'] is not None else "Немає даних"
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,
-                        text=f"Оцінка вашого трейду: {score}\n"
+                        text=f"ID трейду: {page_id}\n"
+                             f"Оцінка вашого трейду: {score}\n"
                              f"Категорія трейду: {trade_class}\n"
                              f"Рекомендований ризик: {offer_risk}"
                     )
                 else:
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,
-                        text="Не вдалося отримати оцінку трейду. Перевір логи."
+                        text=f"ID трейду: {page_id}\nНе вдалося отримати оцінку трейду. Перевір логи."
                     )
                 
                 conn = heroku3.from_key(HEROKU_API_KEY)
                 heroku_app = conn.apps()['tradenotionbot-lg2']
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-                # Очищаємо параметри
                 for key in ['waiting_for_rr', 'Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
                             'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']:
                     if key in user_data[auth_key]:
@@ -628,7 +672,8 @@ async def button(update, context):
         if page_id:
             keyboard = [
                 [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
-                [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
+                [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
+                [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери дію:", reply_markup=reply_markup)
@@ -639,16 +684,47 @@ async def button(update, context):
                 summary = format_summary(user_data[auth_key]['last_trade'])
                 keyboard = [
                     [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
-                    [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
+                    [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
+                    [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await query.edit_message_text(f"Останній трейд:\n{summary}\n\nВибери дію:", reply_markup=reply_markup)
             else:
                 keyboard = [
-                    [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')]
+                    [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
+                    [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await query.edit_message_text("Ще немає відправлених трейдів. Вибери дію:", reply_markup=reply_markup)
+    
+    elif query.data == 'view_last_5_trades':
+        async with user_data_lock:
+            if 'classification_db_id' not in user_data[auth_key]:
+                await query.edit_message_text("Помилка: база даних Classification не налаштована.")
+                return
+            trades = fetch_last_5_trades(user_data[auth_key]['classification_db_id'], user_data[auth_key]['notion_token'])
+            if trades:
+                message = "Останні 5 трейдів:\n\n"
+                for trade in trades:
+                    score = trade['Score'] if trade['Score'] is not None else "Немає даних"
+                    trade_class = trade['Trade Class'] if trade['Trade Class'] is not None else "Немає даних"
+                    offer_risk = trade['Offer Risk'] if trade['Offer Risk'] is not None else "Немає даних"
+                    message += (
+                        f"ID трейду: {trade['id']}\n"
+                        f"Оцінка вашого трейду: {score}\n"
+                        f"Категорія трейду: {trade_class}\n"
+                        f"Рекомендований ризик: {offer_risk}\n\n"
+                    )
+            else:
+                message = "Не вдалося отримати останні трейди або їх ще немає."
+            
+            keyboard = [
+                [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
+                [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
+                [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(message, reply_markup=reply_markup)
     
     elif query.data == 'edit_trade':
         keyboard = [
