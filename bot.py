@@ -106,10 +106,10 @@ def fetch_page_properties(page_id, notion_token):
     data = response.json()
     properties = data.get('properties', {})
     
-    # Витягуємо Score (number), Trade Class (formula як string), Offer Risk (number)
-    score = properties.get('Score', {}).get('number', None)
+    # Витягуємо Score (formula як number), Trade Class (formula як string), Offer Risk (formula як number)
+    score = properties.get('Score', {}).get('formula', {}).get('number', None)
     trade_class = properties.get('Trade Class', {}).get('formula', {}).get('string', None)
-    offer_risk = properties.get('Offer Risk', {}).get('number', None)
+    offer_risk = properties.get('Offer Risk', {}).get('formula', {}).get('number', None)
     
     logger.info(f"Retrieved properties - Score: {score}, Trade Class: {trade_class}, Offer Risk: {offer_risk}")
     return {
@@ -591,8 +591,8 @@ async def button(update, context):
                 # Відправляємо перше повідомлення
                 await query.edit_message_text("Трейд успішно додано до Notion!")
                 
-                # Затримка 3 секунди для обробки формул у Notion
-                await asyncio.sleep(3)
+                # Затримка 5 секунд для обробки формул у Notion
+                await asyncio.sleep(5)
                 
                 # Отримуємо властивості сторінки
                 properties = fetch_page_properties(page_id, user_data[auth_key]['notion_token'])
@@ -664,11 +664,22 @@ async def button(update, context):
             [InlineKeyboardButton("Entry TF", callback_data='edit_entrytf')],
             [InlineKeyboardButton("Point B", callback_data='edit_pointb')],
             [InlineKeyboardButton("SL Position", callback_data='edit_slposition')],
-            [InlineKeyboardButton("RR", callback_data='edit_rr')]
+            [InlineKeyboardButton("RR", callback_data='edit_rr')],
+            [InlineKeyboardButton("Повернутися", callback_data='back_to_summary')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text("Який параметр хочеш змінити?", reply_markup=reply_markup)
     
+    elif query.data == 'back_to_summary':
+        async with user_data_lock:
+            summary = format_summary(user_data[auth_key])
+            keyboard = [
+                [InlineKeyboardButton("Відправити", callback_data='submit_trade')],
+                [InlineKeyboardButton("Змінити", callback_data='edit_trade')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(f"{summary}\n\nПеревір дані. Якщо все правильно, натисни 'Відправити'. Якщо щось не так, натисни 'Змінити'.", reply_markup=reply_markup)
+
     # Логіка редагування
     elif query.data == 'edit_pair':
         keyboard = [
