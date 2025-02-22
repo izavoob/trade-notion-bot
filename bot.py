@@ -118,6 +118,54 @@ def fetch_page_properties(page_id, notion_token):
         'Offer Risk': offer_risk
     }
 
+# Нова функція для рестарта бота
+async def restart(update, context):
+    user_id = str(update.message.from_user.id)
+    auth_key = f"{user_id}user"
+    logger.info(f"Restart command received from user {user_id}")
+    
+    async with user_data_lock:
+        if auth_key in user_data:
+            # Зберігаємо лише user_id (auth_key), але очищаємо всі інші дані
+            if 'notion_token' in user_data[auth_key]:
+                del user_data[auth_key]['notion_token']
+            if 'parent_page_id' in user_data[auth_key]:
+                del user_data[auth_key]['parent_page_id']
+            if 'classification_db_id' in user_data[auth_key]:
+                del user_data[auth_key]['classification_db_id']
+            # Очищаємо тимчасові дані
+            for key in ['waiting_for_rr', 'Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
+                        'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR', 'last_trade']:
+                if key in user_data[auth_key]:
+                    del user_data[auth_key][key]
+            user_data[auth_key]['Trigger'] = []
+            user_data[auth_key]['VC'] = []
+            
+            # Зберігаємо оновлені дані в Heroku
+            conn = heroku3.from_key(HEROKU_API_KEY)
+            heroku_app = conn.apps()['tradenotionbot-lg2']
+            heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+            logger.info(f"User data cleared for {user_id}, keeping user_id. Restarting...")
+            
+            # Повертаємо користувача до початкових інструкцій
+            instructions = (
+                "Щоб використовувати бота:\n"
+                "1. Скопіюй сторінку за посиланням: https://www.notion.so/A-B-C-position-Final-Bot-1a084b079a8280d29d5ecc9316e02c5d\n"
+                "2. Авторизуйся нижче і надай доступ до скопійованої сторінки.\n"
+                "3. Введи ID батьківської сторінки 'A-B-C position Final Bot' (32 символи з URL)."
+            )
+            auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
+            keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(instructions, reply_markup=reply_markup)
+            await context.bot.send_photo(
+                chat_id=update.message.chat_id,
+                photo='PHOTO_FILE_ID'  # Замініть на реальний file_id зображення
+            )
+        else:
+            await update.message.reply_text("Ви ще не авторизовані. Почніть із /start.")
+
 # Початок роботи бота
 async def start(update, context):
     user_id = str(update.message.from_user.id)
@@ -136,13 +184,10 @@ async def start(update, context):
             keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            # Відправляємо текст інструкції
             await update.message.reply_text(instructions, reply_markup=reply_markup)
-            
-            # Відправляємо зображення (замініть 'PHOTO_FILE_ID' на реальний file_id зображення)
             await context.bot.send_photo(
                 chat_id=update.message.chat_id,
-                photo='658463621'
+                photo='PHOTO_FILE_ID'  # Замініть на реальний file_id зображення
             )
         elif 'parent_page_id' not in user_data[auth_key]:
             await update.message.reply_text('Введи ID батьківської сторінки "A-B-C position Final Bot" (32 символи з URL):')
@@ -626,7 +671,7 @@ async def button(update, context):
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
                 # Очищаємо параметри
                 for key in ['waiting_for_rr', 'Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
-                            ' Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']:
+                            'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']:
                     if key in user_data[auth_key]:
                         del user_data[auth_key][key]
                 user_data[auth_key]['Trigger'] = []
@@ -819,6 +864,7 @@ def main():
     logger.info("Starting bot with TELEGRAM_TOKEN: [REDACTED]")
     application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(30).write_timeout(30).build()
     application.add_handler(CommandHandler('start', start))
+    application.add_handler(CommandHandler('restart', restart))  # Додаємо команду /restart
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     logger.info("Bot handlers registered. Starting polling...")
