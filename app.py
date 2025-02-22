@@ -1,7 +1,7 @@
 import os
 import json
 import requests
-import heroku3  # Добавлен импорт
+import heroku3
 from flask import Flask, request, redirect
 
 app = Flask(__name__)
@@ -41,7 +41,8 @@ def callback():
             conn = heroku3.from_key(HEROKU_API_KEY)
             heroku_app = conn.apps()['tradenotionbot-lg2']  # Убедитесь, что имя приложения правильное
             config = heroku_app.config()
-            user_data = json.loads(config.get('HEROKU_USER_DATA', '{}'))
+            # Используем dict.get() для безопасного получения значения с дефолтом '{}'
+            user_data = json.loads(config.get('HEROKU_USER_DATA', '{}') if hasattr(config, 'get') else config['HEROKU_USER_DATA'] if 'HEROKU_USER_DATA' in config else '{}')
             user_data[state] = {'notion_token': notion_token}
             config['HEROKU_USER_DATA'] = json.dumps(user_data)
             app.logger.info(f"Збережено user_data: {json.dumps(user_data)}")
