@@ -149,7 +149,7 @@ async def restart(update, context):
             
             # Повертаємо користувача до початкових інструкцій
             instructions = (
-                "**Щоб використовувати бота:**\n"
+                "Щоб використовувати бота:\n"
                 "1. Скопіюй сторінку за посиланням: https://www.notion.so/A-B-C-position-Final-Bot-1a084b079a8280d29d5ecc9316e02c5d\n"
                 "2. Авторизуйся нижче і надай доступ до скопійованої сторінки.\n"
                 "3. Введи ID батьківської сторінки 'A-B-C position Final Bot' (32 символи з URL)."
@@ -158,13 +158,13 @@ async def restart(update, context):
             keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await update.message.reply_text(instructions, parse_mode='MarkdownV2', reply_markup=reply_markup)
+            await update.message.reply_text(instructions, reply_markup=reply_markup)
             await context.bot.send_photo(
                 chat_id=update.message.chat_id,
                 photo='PHOTO_FILE_ID'  # Замініть на реальний file_id зображення
             )
         else:
-            await update.message.reply_text("Ви ще не авторизовані. Почніть із /start.", parse_mode='MarkdownV2')
+            await update.message.reply_text("Ви ще не авторизовані. Почніть із /start.")
 
 # Початок роботи бота
 async def start(update, context):
@@ -173,10 +173,9 @@ async def start(update, context):
     logger.info(f"Start command received from user {user_id}")
     
     async with user_data_lock:
-        logger.debug(f"User data for {auth_key}: {json.dumps(user_data.get(auth_key, {}), indent=2)}")
         if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
             instructions = (
-                "**Щоб використовувати бота:**\n"
+                "Щоб використовувати бота:\n"
                 "1. Скопіюй сторінку за посиланням: https://www.notion.so/A-B-C-position-Final-Bot-1a084b079a8280d29d5ecc9316e02c5d\n"
                 "2. Авторизуйся нижче і надай доступ до скопійованої сторінки.\n"
                 "3. Введи ID батьківської сторінки 'A-B-C position Final Bot' (32 символи з URL)."
@@ -185,13 +184,13 @@ async def start(update, context):
             keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await update.message.reply_text(instructions, parse_mode='MarkdownV2', reply_markup=reply_markup)
+            await update.message.reply_text(instructions, reply_markup=reply_markup)
             await context.bot.send_photo(
                 chat_id=update.message.chat_id,
                 photo='PHOTO_FILE_ID'  # Замініть на реальний file_id зображення
             )
         elif 'parent_page_id' not in user_data[auth_key]:
-            await update.message.reply_text('Введи ID батьківської сторінки "A-B-C position Final Bot" (32 символи з URL):', parse_mode='MarkdownV2')
+            await update.message.reply_text('Введи ID батьківської сторінки "A-B-C position Final Bot" (32 символи з URL):')
         elif 'classification_db_id' not in user_data[auth_key]:
             classification_db_id = fetch_classification_db_id(user_data[auth_key]['parent_page_id'], user_data[auth_key]['notion_token'])
             if classification_db_id:
@@ -200,20 +199,20 @@ async def start(update, context):
                 heroku_app = conn.apps()['tradenotionbot-lg2']
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
                 keyboard = [
-                    [InlineKeyboardButton("**Додати новий трейд**", callback_data='add_trade')],
-                    [InlineKeyboardButton("**Переглянути останній трейд**", callback_data='view_last_trade')]
+                    [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
+                    [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                await update.message.reply_text('**Привіт! Вибери дію:**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+                await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
             else:
-                await update.message.reply_text('Помилка: не вдалося знайти базу "Classification". Перевір правильність ID сторінки.', parse_mode='MarkdownV2')
+                await update.message.reply_text('Помилка: не вдалося знайти базу "Classification". Перевір правильність ID сторінки.')
         else:
             keyboard = [
-                [InlineKeyboardButton("**Додати новий трейд**", callback_data='add_trade')],
-                [InlineKeyboardButton("**Переглянути останній трейд**", callback_data='view_last_trade')]
+                [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
+                [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text('**Привіт! Вибери дію:**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+            await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
 
 # Обробка текстового вводу
 async def handle_text(update, context):
@@ -222,9 +221,8 @@ async def handle_text(update, context):
     logger.info(f"Text input received from user {user_id}: {update.message.text}")
     
     async with user_data_lock:
-        logger.debug(f"User data before processing: {json.dumps(user_data.get(auth_key, {}), indent=2)}")
         if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
-            await update.message.reply_text("Спочатку авторизуйся через /start.", parse_mode='MarkdownV2')
+            await update.message.reply_text("Спочатку авторизуйся через /start.")
         elif 'parent_page_id' not in user_data[auth_key]:
             text = update.message.text
             if len(text) == 32:
@@ -232,9 +230,9 @@ async def handle_text(update, context):
                 conn = heroku3.from_key(HEROKU_API_KEY)
                 heroku_app = conn.apps()['tradenotionbot-lg2']
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-                await update.message.reply_text('ID сторінки збережено! Напиши /start.', parse_mode='MarkdownV2')
+                await update.message.reply_text('ID сторінки збережено! Напиши /start.')
             else:
-                await update.message.reply_text('Неправильний ID. Введи 32 символи з URL сторінки "A-B-C position Final Bot".', parse_mode='MarkdownV2')
+                await update.message.reply_text('Неправильний ID. Введи 32 символи з URL сторінки "A-B-C position Final Bot".')
         elif 'waiting_for_rr' in user_data[auth_key]:
             rr_input = update.message.text
             try:
@@ -244,21 +242,21 @@ async def handle_text(update, context):
                                 'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']
                 missing_keys = [key for key in required_keys if key not in user_data[auth_key]]
                 if missing_keys:
-                    await update.message.reply_text(f"Помилка: відсутні дані для {', '.join(missing_keys)}. Почни заново через 'Додати трейд'.", parse_mode='MarkdownV2')
+                    await update.message.reply_text(f"Помилка: відсутні дані для {', '.join(missing_keys)}. Почни заново через 'Додати трейд'.")
                 else:
                     summary = format_summary(user_data[auth_key])
                     keyboard = [
-                        [InlineKeyboardButton("**Відправити**", callback_data='submit_trade')],
-                        [InlineKeyboardButton("**Змінити**", callback_data='edit_trade')]
+                        [InlineKeyboardButton("Відправити", callback_data='submit_trade')],
+                        [InlineKeyboardButton("Змінити", callback_data='edit_trade')]
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
-                    await update.message.reply_text(f"{summary}\n\nПеревір дані. Якщо все правильно, натисни '**Відправити**'. Якщо щось не так, натисни '**Змінити**'.", parse_mode='MarkdownV2', reply_markup=reply_markup)
+                    await update.message.reply_text(f"{summary}\n\nПеревір дані. Якщо все правильно, натисни 'Відправити'. Якщо щось не так, натисни 'Змінити'.", reply_markup=reply_markup)
             except ValueError:
-                await update.message.reply_text("Введи коректне число для RR (наприклад, 2.5):", parse_mode='MarkdownV2')
+                await update.message.reply_text("Введи коректне число для RR (наприклад, 2.5):")
             except Exception as e:
-                await update.message.reply_text(f"Помилка при обробці RR: {str(e)}. Спробуй ще раз.", parse_mode='MarkdownV2')
+                await update.message.reply_text(f"Помилка при обробці RR: {str(e)}. Спробуй ще раз.")
         else:
-            await update.message.reply_text("Спочатку почни додавання трейду через /start.", parse_mode='MarkdownV2')
+            await update.message.reply_text("Спочатку почни додавання трейду через /start.")
 
 # Форматування підсумку
 def format_summary(data):
@@ -293,10 +291,10 @@ async def button(update, context):
     
     async with user_data_lock:
         if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
-            await query.edit_message_text("Спочатку авторизуйся через /start.", parse_mode='MarkdownV2')
+            await query.edit_message_text("Спочатку авторизуйся через /start.")
             return
         if 'parent_page_id' not in user_data[auth_key]:
-            await query.edit_message_text("Спочатку введи ID сторінки через /start.", parse_mode='MarkdownV2')
+            await query.edit_message_text("Спочатку введи ID сторінки через /start.")
             return
         
         if 'Trigger' not in user_data[auth_key] or not isinstance(user_data[auth_key]['Trigger'], list):
@@ -306,89 +304,89 @@ async def button(update, context):
 
     if query.data == 'add_trade':
         keyboard = [
-            [InlineKeyboardButton("**EURUSD**", callback_data='pair_EURUSD')],
-            [InlineKeyboardButton("**GBPUSD**", callback_data='pair_GBPUSD')],
-            [InlineKeyboardButton("**USDJPY**", callback_data='pair_USDJPY')],
-            [InlineKeyboardButton("**XAUUSD**", callback_data='pair_XAUUSD')],
-            [InlineKeyboardButton("**GER40**", callback_data='pair_GER40')]
+            [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
+            [InlineKeyboardButton("GBPUSD", callback_data='pair_GBPUSD')],
+            [InlineKeyboardButton("USDJPY", callback_data='pair_USDJPY')],
+            [InlineKeyboardButton("XAUUSD", callback_data='pair_XAUUSD')],
+            [InlineKeyboardButton("GER40", callback_data='pair_GER40')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Pair?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Pair?', reply_markup=reply_markup)
     
     elif query.data.startswith('pair_'):
         async with user_data_lock:
             user_data[auth_key]['Pair'] = query.data.split('_')[1]
         keyboard = [
-            [InlineKeyboardButton("**Asia**", callback_data='session_Asia')],
-            [InlineKeyboardButton("**Frankfurt**", callback_data='session_Frankfurt')],
-            [InlineKeyboardButton("**London**", callback_data='session_London')],
-            [InlineKeyboardButton("**Out of OTT**", callback_data='session_Out of OTT')],
-            [InlineKeyboardButton("**New York**", callback_data='session_New York')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_start')]
+            [InlineKeyboardButton("Asia", callback_data='session_Asia')],
+            [InlineKeyboardButton("Frankfurt", callback_data='session_Frankfurt')],
+            [InlineKeyboardButton("London", callback_data='session_London')],
+            [InlineKeyboardButton("Out of OTT", callback_data='session_Out of OTT')],
+            [InlineKeyboardButton("New York", callback_data='session_New York')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_start')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Session?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Session?', reply_markup=reply_markup)
     
     elif query.data.startswith('session_'):
         async with user_data_lock:
             user_data[auth_key]['Session'] = query.data.split('_')[1]
         keyboard = [
-            [InlineKeyboardButton("**By Context**", callback_data='context_By Context')],
-            [InlineKeyboardButton("**Against Context**", callback_data='context_Against Context')],
-            [InlineKeyboardButton("**Neutral Context**", callback_data='context_Neutral Context')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_pair')]
+            [InlineKeyboardButton("By Context", callback_data='context_By Context')],
+            [InlineKeyboardButton("Against Context", callback_data='context_Against Context')],
+            [InlineKeyboardButton("Neutral Context", callback_data='context_Neutral Context')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_pair')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Context?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Context?', reply_markup=reply_markup)
     
     elif query.data.startswith('context_'):
         async with user_data_lock:
             user_data[auth_key]['Context'] = query.data.split('_')[1]
         keyboard = [
-            [InlineKeyboardButton("**Minimal**", callback_data='testpoi_Minimal')],
-            [InlineKeyboardButton("**>50% or FullFill**", callback_data='testpoi_>50% or FullFill')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_session')]
+            [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
+            [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_session')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Test POI?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Test POI?', reply_markup=reply_markup)
     
     elif query.data.startswith('testpoi_'):
         async with user_data_lock:
             user_data[auth_key]['Test POI'] = query.data.split('_')[1]
         keyboard = [
-            [InlineKeyboardButton("**Non-agressive**", callback_data='delivery_Non-agressive')],
-            [InlineKeyboardButton("**Agressive**", callback_data='delivery_Agressive')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_context')]
+            [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
+            [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_context')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Delivery to POI?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
     
     elif query.data.startswith('delivery_'):
         async with user_data_lock:
             user_data[auth_key]['Delivery to POI'] = query.data.split('_')[1]
         keyboard = [
-            [InlineKeyboardButton("**Fractal Raid**", callback_data='pointa_Fractal Raid')],
-            [InlineKeyboardButton("**RB**", callback_data='pointa_RB')],
-            [InlineKeyboardButton("**FVG**", callback_data='pointa_FVG')],
-            [InlineKeyboardButton("**SNR**", callback_data='pointa_SNR')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_testpoi')]
+            [InlineKeyboardButton("Fractal Raid", callback_data='pointa_Fractal Raid')],
+            [InlineKeyboardButton("RB", callback_data='pointa_RB')],
+            [InlineKeyboardButton("FVG", callback_data='pointa_FVG')],
+            [InlineKeyboardButton("SNR", callback_data='pointa_SNR')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_testpoi')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Point A?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Point A?', reply_markup=reply_markup)
     
     elif query.data.startswith('pointa_'):
         async with user_data_lock:
             user_data[auth_key]['Point A'] = query.data.split('_')[1]
             user_data[auth_key]['Trigger'] = []
         keyboard = [
-            [InlineKeyboardButton("**Fractal Swing**", callback_data='trigger_Fractal Swing')],
-            [InlineKeyboardButton("**FVG**", callback_data='trigger_FVG')],
-            [InlineKeyboardButton("**No Trigger**", callback_data='trigger_No Trigger')],
-            [InlineKeyboardButton("**Готово**", callback_data='trigger_done')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_delivery')]
+            [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
+            [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
+            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')],
+            [InlineKeyboardButton("Готово", callback_data='trigger_done')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_delivery')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"**Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})**", parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data.startswith('trigger_') and query.data != 'trigger_done':
         trigger_value = query.data.split('_')[1]
@@ -398,30 +396,30 @@ async def button(update, context):
             else:
                 user_data[auth_key]['Trigger'].append(trigger_value)
         keyboard = [
-            [InlineKeyboardButton("**Fractal Swing**", callback_data='trigger_Fractal Swing')],
-            [InlineKeyboardButton("**FVG**", callback_data='trigger_FVG')],
-            [InlineKeyboardButton("**No Trigger**", callback_data='trigger_No Trigger')],
-            [InlineKeyboardButton("**Готово**", callback_data='trigger_done')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_pointa')]
+            [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
+            [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
+            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')],
+            [InlineKeyboardButton("Готово", callback_data='trigger_done')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_pointa')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"**Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})**", parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'trigger_done':
         async with user_data_lock:
             if not user_data[auth_key]['Trigger']:
-                await query.edit_message_text("**Обери хоча б один Trigger!**", parse_mode='MarkdownV2')
+                await query.edit_message_text("Обери хоча б один Trigger!")
                 return
             user_data[auth_key]['VC'] = []
         keyboard = [
-            [InlineKeyboardButton("**SNR**", callback_data='vc_SNR')],
-            [InlineKeyboardButton("**FVG**", callback_data='vc_FVG')],
-            [InlineKeyboardButton("**Inversion**", callback_data='vc_Inversion')],
-            [InlineKeyboardButton("**Готово**", callback_data='vc_done')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_pointa')]
+            [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
+            [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
+            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
+            [InlineKeyboardButton("Готово", callback_data='vc_done')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_pointa')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"**VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})**", parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data.startswith('vc_') and query.data != 'vc_done':
         vc_value = query.data.split('_')[1]
@@ -431,197 +429,197 @@ async def button(update, context):
             else:
                 user_data[auth_key]['VC'].append(vc_value)
         keyboard = [
-            [InlineKeyboardButton("**SNR**", callback_data='vc_SNR')],
-            [InlineKeyboardButton("**FVG**", callback_data='vc_FVG')],
-            [InlineKeyboardButton("**Inversion**", callback_data='vc_Inversion')],
-            [InlineKeyboardButton("**Готово**", callback_data='vc_done')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_trigger')]
+            [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
+            [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
+            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
+            [InlineKeyboardButton("Готово", callback_data='vc_done')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_trigger')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"**VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})**", parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'vc_done':
         async with user_data_lock:
             if not user_data[auth_key]['VC']:
-                await query.edit_message_text("**Обери хоча б один VC!**", parse_mode='MarkdownV2')
+                await query.edit_message_text("Обери хоча б один VC!")
                 return
         keyboard = [
-            [InlineKeyboardButton("**IDM**", callback_data='entrymodel_IDM')],
-            [InlineKeyboardButton("**Inversion**", callback_data='entrymodel_Inversion')],
-            [InlineKeyboardButton("**SNR**", callback_data='entrymodel_SNR')],
-            [InlineKeyboardButton("**Displacement**", callback_data='entrymodel_Displacement')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_vc')]
+            [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
+            [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
+            [InlineKeyboardButton("SNR", callback_data='entrymodel_SNR')],
+            [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_vc')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Entry Model?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
     
     elif query.data.startswith('entrymodel_'):
         async with user_data_lock:
             user_data[auth_key]['Entry Model'] = query.data.split('_')[1]
         keyboard = [
-            [InlineKeyboardButton("**3m**", callback_data='entrytf_3m')],
-            [InlineKeyboardButton("**5m**", callback_data='entrytf_5m')],
-            [InlineKeyboardButton("**15m**", callback_data='entrytf_15m')],
-            [InlineKeyboardButton("**1H/30m**", callback_data='entrytf_1H/30m')],
-            [InlineKeyboardButton("**4H**", callback_data='entrytf_4H')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_vc')]
+            [InlineKeyboardButton("3m", callback_data='entrytf_3m')],
+            [InlineKeyboardButton("5m", callback_data='entrytf_5m')],
+            [InlineKeyboardButton("15m", callback_data='entrytf_15m')],
+            [InlineKeyboardButton("1H/30m", callback_data='entrytf_1H/30m')],
+            [InlineKeyboardButton("4H", callback_data='entrytf_4H')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_vc')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Entry TF?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Entry TF?', reply_markup=reply_markup)
     
     elif query.data.startswith('entrytf_'):
         async with user_data_lock:
             user_data[auth_key]['Entry TF'] = query.data.split('_')[1]
         keyboard = [
-            [InlineKeyboardButton("**Fractal Swing**", callback_data='pointb_Fractal Swing')],
-            [InlineKeyboardButton("**FVG**", callback_data='pointb_FVG')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_entrymodel')]
+            [InlineKeyboardButton("Fractal Swing", callback_data='pointb_Fractal Swing')],
+            [InlineKeyboardButton("FVG", callback_data='pointb_FVG')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_entrymodel')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Point B?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Point B?', reply_markup=reply_markup)
     
     elif query.data.startswith('pointb_'):
         async with user_data_lock:
             user_data[auth_key]['Point B'] = query.data.split('_')[1]
         keyboard = [
-            [InlineKeyboardButton("**LTF/Lunch Manipulation**", callback_data='slposition_LTF/Lunch Manipulation')],
-            [InlineKeyboardButton("**1H/30m Raid**", callback_data='slposition_1H/30m Raid')],
-            [InlineKeyboardButton("**4H Raid**", callback_data='slposition_4H Raid')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_entrytf')]
+            [InlineKeyboardButton("LTF/Lunch Manipulation", callback_data='slposition_LTF/Lunch Manipulation')],
+            [InlineKeyboardButton("1H/30m Raid", callback_data='slposition_1H/30m Raid')],
+            [InlineKeyboardButton("4H Raid", callback_data='slposition_4H Raid')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_entrytf')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**SL Position?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('SL Position?', reply_markup=reply_markup)
     
     elif query.data.startswith('slposition_'):
         async with user_data_lock:
             user_data[auth_key]['SL Position'] = query.data.split('_')[1]
             user_data[auth_key]['waiting_for_rr'] = True
-        await context.bot.send_message(chat_id=query.message.chat_id, text='**Введи RR вручну (наприклад, 2.5):**', parse_mode='MarkdownV2', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("**Назад**", callback_data='back_to_pointb')]]))
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Назад", callback_data='back_to_pointb')]]))
 
     # Логіка повернення назад
     elif query.data == 'back_to_start':
         keyboard = [
-            [InlineKeyboardButton("**Додати новий трейд**", callback_data='add_trade')],
-            [InlineKeyboardButton("**Переглянути останній трейд**", callback_data='view_last_trade')]
+            [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
+            [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Привіт! Вибери дію:**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Привіт! Вибери дію:', reply_markup=reply_markup)
     
     elif query.data == 'back_to_pair':
         keyboard = [
-            [InlineKeyboardButton("**EURUSD**", callback_data='pair_EURUSD')],
-            [InlineKeyboardButton("**GBPUSD**", callback_data='pair_GBPUSD')],
-            [InlineKeyboardButton("**USDJPY**", callback_data='pair_USDJPY')],
-            [InlineKeyboardButton("**XAUUSD**", callback_data='pair_XAUUSD')],
-            [InlineKeyboardButton("**GER40**", callback_data='pair_GER40')]
+            [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
+            [InlineKeyboardButton("GBPUSD", callback_data='pair_GBPUSD')],
+            [InlineKeyboardButton("USDJPY", callback_data='pair_USDJPY')],
+            [InlineKeyboardButton("XAUUSD", callback_data='pair_XAUUSD')],
+            [InlineKeyboardButton("GER40", callback_data='pair_GER40')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Pair?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Pair?', reply_markup=reply_markup)
     
     elif query.data == 'back_to_session':
         keyboard = [
-            [InlineKeyboardButton("**Asia**", callback_data='session_Asia')],
-            [InlineKeyboardButton("**Frankfurt**", callback_data='session_Frankfurt')],
-            [InlineKeyboardButton("**London**", callback_data='session_London')],
-            [InlineKeyboardButton("**Out of OTT**", callback_data='session_Out of OTT')],
-            [InlineKeyboardButton("**New York**", callback_data='session_New York')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_pair')]
+            [InlineKeyboardButton("Asia", callback_data='session_Asia')],
+            [InlineKeyboardButton("Frankfurt", callback_data='session_Frankfurt')],
+            [InlineKeyboardButton("London", callback_data='session_London')],
+            [InlineKeyboardButton("Out of OTT", callback_data='session_Out of OTT')],
+            [InlineKeyboardButton("New York", callback_data='session_New York')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_pair')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Session?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Session?', reply_markup=reply_markup)
     
     elif query.data == 'back_to_context':
         keyboard = [
-            [InlineKeyboardButton("**By Context**", callback_data='context_By Context')],
-            [InlineKeyboardButton("**Against Context**", callback_data='context_Against Context')],
-            [InlineKeyboardButton("**Neutral Context**", callback_data='context_Neutral Context')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_session')]
+            [InlineKeyboardButton("By Context", callback_data='context_By Context')],
+            [InlineKeyboardButton("Against Context", callback_data='context_Against Context')],
+            [InlineKeyboardButton("Neutral Context", callback_data='context_Neutral Context')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_session')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Context?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Context?', reply_markup=reply_markup)
     
     elif query.data == 'back_to_testpoi':
         keyboard = [
-            [InlineKeyboardButton("**Minimal**", callback_data='testpoi_Minimal')],
-            [InlineKeyboardButton("**>50% or FullFill**", callback_data='testpoi_>50% or FullFill')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_context')]
+            [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
+            [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_context')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Test POI?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Test POI?', reply_markup=reply_markup)
     
     elif query.data == 'back_to_delivery':
         keyboard = [
-            [InlineKeyboardButton("**Non-agressive**", callback_data='delivery_Non-agressive')],
-            [InlineKeyboardButton("**Agressive**", callback_data='delivery_Agressive')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_testpoi')]
+            [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
+            [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_testpoi')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Delivery to POI?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
     
     elif query.data == 'back_to_pointa':
         keyboard = [
-            [InlineKeyboardButton("**Fractal Raid**", callback_data='pointa_Fractal Raid')],
-            [InlineKeyboardButton("**RB**", callback_data='pointa_RB')],
-            [InlineKeyboardButton("**FVG**", callback_data='pointa_FVG')],
-            [InlineKeyboardButton("**SNR**", callback_data='pointa_SNR')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_delivery')]
+            [InlineKeyboardButton("Fractal Raid", callback_data='pointa_Fractal Raid')],
+            [InlineKeyboardButton("RB", callback_data='pointa_RB')],
+            [InlineKeyboardButton("FVG", callback_data='pointa_FVG')],
+            [InlineKeyboardButton("SNR", callback_data='pointa_SNR')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_delivery')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Point A?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Point A?', reply_markup=reply_markup)
     
     elif query.data == 'back_to_trigger':
         keyboard = [
-            [InlineKeyboardButton("**Fractal Swing**", callback_data='trigger_Fractal Swing')],
-            [InlineKeyboardButton("**FVG**", callback_data='trigger_FVG')],
-            [InlineKeyboardButton("**No Trigger**", callback_data='trigger_No Trigger')],
-            [InlineKeyboardButton("**Готово**", callback_data='trigger_done')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_pointa')]
+            [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
+            [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
+            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')],
+            [InlineKeyboardButton("Готово", callback_data='trigger_done')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_pointa')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"**Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})**", parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'back_to_vc':
         keyboard = [
-            [InlineKeyboardButton("**SNR**", callback_data='vc_SNR')],
-            [InlineKeyboardButton("**FVG**", callback_data='vc_FVG')],
-            [InlineKeyboardButton("**Inversion**", callback_data='vc_Inversion')],
-            [InlineKeyboardButton("**Готово**", callback_data='vc_done')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_trigger')]
+            [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
+            [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
+            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
+            [InlineKeyboardButton("Готово", callback_data='vc_done')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_trigger')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"**VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})**", parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'back_to_entrymodel':
         keyboard = [
-            [InlineKeyboardButton("**IDM**", callback_data='entrymodel_IDM')],
-            [InlineKeyboardButton("**Inversion**", callback_data='entrymodel_Inversion')],
-            [InlineKeyboardButton("**SNR**", callback_data='entrymodel_SNR')],
-            [InlineKeyboardButton("**Displacement**", callback_data='entrymodel_Displacement')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_vc')]
+            [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
+            [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
+            [InlineKeyboardButton("SNR", callback_data='entrymodel_SNR')],
+            [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_vc')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Entry Model?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
     
     elif query.data == 'back_to_entrytf':
         keyboard = [
-            [InlineKeyboardButton("**3m**", callback_data='entrytf_3m')],
-            [InlineKeyboardButton("**5m**", callback_data='entrytf_5m')],
-            [InlineKeyboardButton("**15m**", callback_data='entrytf_15m')],
-            [InlineKeyboardButton("**1H/30m**", callback_data='entrytf_1H/30m')],
-            [InlineKeyboardButton("**4H**", callback_data='entrytf_4H')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_entrymodel')]
+            [InlineKeyboardButton("3m", callback_data='entrytf_3m')],
+            [InlineKeyboardButton("5m", callback_data='entrytf_5m')],
+            [InlineKeyboardButton("15m", callback_data='entrytf_15m')],
+            [InlineKeyboardButton("1H/30m", callback_data='entrytf_1H/30m')],
+            [InlineKeyboardButton("4H", callback_data='entrytf_4H')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_entrymodel')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Entry TF?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Entry TF?', reply_markup=reply_markup)
     
     elif query.data == 'back_to_pointb':
         keyboard = [
-            [InlineKeyboardButton("**Fractal Swing**", callback_data='pointb_Fractal Swing')],
-            [InlineKeyboardButton("**FVG**", callback_data='pointb_FVG')],
-            [InlineKeyboardButton("**Назад**", callback_data='back_to_entrytf')]
+            [InlineKeyboardButton("Fractal Swing", callback_data='pointb_Fractal Swing')],
+            [InlineKeyboardButton("FVG", callback_data='pointb_FVG')],
+            [InlineKeyboardButton("Назад", callback_data='back_to_entrytf')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Point B?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Point B?', reply_markup=reply_markup)
 
     # Оновлена логіка підтвердження трейду
     elif query.data == 'submit_trade':
@@ -645,7 +643,7 @@ async def button(update, context):
                     'RR': user_data[auth_key].get('RR')
                 }
                 # Відправляємо перше повідомлення
-                await query.edit_message_text("**Трейд успішно додано до Notion!**", parse_mode='MarkdownV2')
+                await query.edit_message_text("Трейд успішно додано до Notion!")
                 
                 # Затримка 5 секунд для обробки формул у Notion
                 await asyncio.sleep(5)
@@ -658,16 +656,14 @@ async def button(update, context):
                     offer_risk = properties['Offer Risk'] if properties['Offer Risk'] is not None else "Немає даних"
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,
-                        text=f"**Оцінка вашого трейду:** {score}\n"
-                             f"**Категорія трейду:** {trade_class}\n"
-                             f"**Рекомендований ризик:** {offer_risk}",
-                        parse_mode='MarkdownV2'
+                        text=f"Оцінка вашого трейду: {score}\n"
+                             f"Категорія трейду: {trade_class}\n"
+                             f"Рекомендований ризик: {offer_risk}"
                     )
                 else:
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,
-                        text="**Не вдалося отримати оцінку трейду. Перевір логи.**",
-                        parse_mode='MarkdownV2'
+                        text="Не вдалося отримати оцінку трейду. Перевір логи."
                     )
                 
                 conn = heroku3.from_key(HEROKU_API_KEY)
@@ -681,198 +677,198 @@ async def button(update, context):
                 user_data[auth_key]['Trigger'] = []
                 user_data[auth_key]['VC'] = []
             else:
-                await query.edit_message_text("**Помилка при відправці трейду в Notion. Перевір логи.**", parse_mode='MarkdownV2')
+                await query.edit_message_text("Помилка при відправці трейду в Notion. Перевір логи.")
         
         if page_id:
             keyboard = [
-                [InlineKeyboardButton("**Додати новий трейд**", callback_data='add_trade')],
-                [InlineKeyboardButton("**Переглянути останній трейд**", callback_data='view_last_trade')]
+                [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
+                [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            await context.bot.send_message(chat_id=query.message.chat_id, text="**Вибери дію:**", parse_mode='MarkdownV2', reply_markup=reply_markup)
+            await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери дію:", reply_markup=reply_markup)
     
     elif query.data == 'view_last_trade':
         async with user_data_lock:
             if 'last_trade' in user_data[auth_key] and user_data[auth_key]['last_trade']:
                 summary = format_summary(user_data[auth_key]['last_trade'])
                 keyboard = [
-                    [InlineKeyboardButton("**Додати новий трейд**", callback_data='add_trade')],
-                    [InlineKeyboardButton("**Переглянути останній трейд**", callback_data='view_last_trade')]
+                    [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
+                    [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                await query.edit_message_text(f"**Останній трейд:**\n{summary}\n\n**Вибери дію:**", parse_mode='MarkdownV2', reply_markup=reply_markup)
+                await query.edit_message_text(f"Останній трейд:\n{summary}\n\nВибери дію:", reply_markup=reply_markup)
             else:
                 keyboard = [
-                    [InlineKeyboardButton("**Додати новий трейд**", callback_data='add_trade')]
+                    [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                await query.edit_message_text("**Ще немає відправлених трейдів. Вибери дію:**", parse_mode='MarkdownV2', reply_markup=reply_markup)
+                await query.edit_message_text("Ще немає відправлених трейдів. Вибери дію:", reply_markup=reply_markup)
     
     elif query.data == 'edit_trade':
         keyboard = [
-            [InlineKeyboardButton("**Pair**", callback_data='edit_pair')],
-            [InlineKeyboardButton("**Session**", callback_data='edit_session')],
-            [InlineKeyboardButton("**Context**", callback_data='edit_context')],
-            [InlineKeyboardButton("**Test POI**", callback_data='edit_testpoi')],
-            [InlineKeyboardButton("**Delivery to POI**", callback_data='edit_delivery')],
-            [InlineKeyboardButton("**Point A**", callback_data='edit_pointa')],
-            [InlineKeyboardButton("**Trigger**", callback_data='edit_trigger')],
-            [InlineKeyboardButton("**VC**", callback_data='edit_vc')],
-            [InlineKeyboardButton("**Entry Model**", callback_data='edit_entrymodel')],
-            [InlineKeyboardButton("**Entry TF**", callback_data='edit_entrytf')],
-            [InlineKeyboardButton("**Point B**", callback_data='edit_pointb')],
-            [InlineKeyboardButton("**SL Position**", callback_data='edit_slposition')],
-            [InlineKeyboardButton("**RR**", callback_data='edit_rr')],
-            [InlineKeyboardButton("**Повернутися**", callback_data='back_to_summary')]
+            [InlineKeyboardButton("Pair", callback_data='edit_pair')],
+            [InlineKeyboardButton("Session", callback_data='edit_session')],
+            [InlineKeyboardButton("Context", callback_data='edit_context')],
+            [InlineKeyboardButton("Test POI", callback_data='edit_testpoi')],
+            [InlineKeyboardButton("Delivery to POI", callback_data='edit_delivery')],
+            [InlineKeyboardButton("Point A", callback_data='edit_pointa')],
+            [InlineKeyboardButton("Trigger", callback_data='edit_trigger')],
+            [InlineKeyboardButton("VC", callback_data='edit_vc')],
+            [InlineKeyboardButton("Entry Model", callback_data='edit_entrymodel')],
+            [InlineKeyboardButton("Entry TF", callback_data='edit_entrytf')],
+            [InlineKeyboardButton("Point B", callback_data='edit_pointb')],
+            [InlineKeyboardButton("SL Position", callback_data='edit_slposition')],
+            [InlineKeyboardButton("RR", callback_data='edit_rr')],
+            [InlineKeyboardButton("Повернутися", callback_data='back_to_summary')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text("**Який параметр хочеш змінити?**", parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text("Який параметр хочеш змінити?", reply_markup=reply_markup)
     
     elif query.data == 'back_to_summary':
         async with user_data_lock:
             summary = format_summary(user_data[auth_key])
             keyboard = [
-                [InlineKeyboardButton("**Відправити**", callback_data='submit_trade')],
-                [InlineKeyboardButton("**Змінити**", callback_data='edit_trade')]
+                [InlineKeyboardButton("Відправити", callback_data='submit_trade')],
+                [InlineKeyboardButton("Змінити", callback_data='edit_trade')]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            await query.edit_message_text(f"{summary}\n\n**Перевір дані. Якщо все правильно, натисни '**Відправити**'. Якщо щось не так, натисни '**Змінити**'.**", parse_mode='MarkdownV2', reply_markup=reply_markup)
+            await query.edit_message_text(f"{summary}\n\nПеревір дані. Якщо все правильно, натисни 'Відправити'. Якщо щось не так, натисни 'Змінити'.", reply_markup=reply_markup)
 
     # Логіка редагування
     elif query.data == 'edit_pair':
         keyboard = [
-            [InlineKeyboardButton("**EURUSD**", callback_data='pair_EURUSD')],
-            [InlineKeyboardButton("**GBPUSD**", callback_data='pair_GBPUSD')],
-            [InlineKeyboardButton("**USDJPY**", callback_data='pair_USDJPY')],
-            [InlineKeyboardButton("**XAUUSD**", callback_data='pair_XAUUSD')],
-            [InlineKeyboardButton("**GER40**", callback_data='pair_GER40')]
+            [InlineKeyboardButton("EURUSD", callback_data='pair_EURUSD')],
+            [InlineKeyboardButton("GBPUSD", callback_data='pair_GBPUSD')],
+            [InlineKeyboardButton("USDJPY", callback_data='pair_USDJPY')],
+            [InlineKeyboardButton("XAUUSD", callback_data='pair_XAUUSD')],
+            [InlineKeyboardButton("GER40", callback_data='pair_GER40')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Pair?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Pair?', reply_markup=reply_markup)
     
     elif query.data == 'edit_session':
         keyboard = [
-            [InlineKeyboardButton("**Asia**", callback_data='session_Asia')],
-            [InlineKeyboardButton("**Frankfurt**", callback_data='session_Frankfurt')],
-            [InlineKeyboardButton("**London**", callback_data='session_London')],
-            [InlineKeyboardButton("**Out of OTT**", callback_data='session_Out of OTT')],
-            [InlineKeyboardButton("**New York**", callback_data='session_New York')]
+            [InlineKeyboardButton("Asia", callback_data='session_Asia')],
+            [InlineKeyboardButton("Frankfurt", callback_data='session_Frankfurt')],
+            [InlineKeyboardButton("London", callback_data='session_London')],
+            [InlineKeyboardButton("Out of OTT", callback_data='session_Out of OTT')],
+            [InlineKeyboardButton("New York", callback_data='session_New York')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Session?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Session?', reply_markup=reply_markup)
     
     elif query.data == 'edit_context':
         keyboard = [
-            [InlineKeyboardButton("**By Context**", callback_data='context_By Context')],
-            [InlineKeyboardButton("**Against Context**", callback_data='context_Against Context')],
-            [InlineKeyboardButton("**Neutral Context**", callback_data='context_Neutral Context')]
+            [InlineKeyboardButton("By Context", callback_data='context_By Context')],
+            [InlineKeyboardButton("Against Context", callback_data='context_Against Context')],
+            [InlineKeyboardButton("Neutral Context", callback_data='context_Neutral Context')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Context?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Context?', reply_markup=reply_markup)
     
     elif query.data == 'edit_testpoi':
         keyboard = [
-            [InlineKeyboardButton("**Minimal**", callback_data='testpoi_Minimal')],
-            [InlineKeyboardButton("**>50% or FullFill**", callback_data='testpoi_>50% or FullFill')]
+            [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
+            [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Test POI?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Test POI?', reply_markup=reply_markup)
     
     elif query.data == 'edit_delivery':
         keyboard = [
-            [InlineKeyboardButton("**Non-agressive**", callback_data='delivery_Non-agressive')],
-            [InlineKeyboardButton("**Agressive**", callback_data='delivery_Agressive')]
+            [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
+            [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Delivery to POI?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
     
     elif query.data == 'edit_pointa':
         keyboard = [
-            [InlineKeyboardButton("**Fractal Raid**", callback_data='pointa_Fractal Raid')],
-            [InlineKeyboardButton("**RB**", callback_data='pointa_RB')],
-            [InlineKeyboardButton("**FVG**", callback_data='pointa_FVG')],
-            [InlineKeyboardButton("**SNR**", callback_data='pointa_SNR')]
+            [InlineKeyboardButton("Fractal Raid", callback_data='pointa_Fractal Raid')],
+            [InlineKeyboardButton("RB", callback_data='pointa_RB')],
+            [InlineKeyboardButton("FVG", callback_data='pointa_FVG')],
+            [InlineKeyboardButton("SNR", callback_data='pointa_SNR')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Point A?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Point A?', reply_markup=reply_markup)
     
     elif query.data == 'edit_trigger':
         async with user_data_lock:
             user_data[auth_key]['Trigger'] = []
         keyboard = [
-            [InlineKeyboardButton("**Fractal Swing**", callback_data='trigger_Fractal Swing')],
-            [InlineKeyboardButton("**FVG**", callback_data='trigger_FVG')],
-            [InlineKeyboardButton("**No Trigger**", callback_data='trigger_No Trigger')],
-            [InlineKeyboardButton("**Готово**", callback_data='trigger_done')]
+            [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
+            [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
+            [InlineKeyboardButton("No Trigger", callback_data='trigger_No Trigger')],
+            [InlineKeyboardButton("Готово", callback_data='trigger_done')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"**Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})**", parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'edit_vc':
         async with user_data_lock:
             user_data[auth_key]['VC'] = []
         keyboard = [
-            [InlineKeyboardButton("**SNR**", callback_data='vc_SNR')],
-            [InlineKeyboardButton("**FVG**", callback_data='vc_FVG')],
-            [InlineKeyboardButton("**Inversion**", callback_data='vc_Inversion')],
-            [InlineKeyboardButton("**Готово**", callback_data='vc_done')]
+            [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
+            [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
+            [InlineKeyboardButton("Inversion", callback_data='vc_Inversion')],
+            [InlineKeyboardButton("Готово", callback_data='vc_done')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"**VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})**", parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'edit_entrymodel':
         keyboard = [
-            [InlineKeyboardButton("**IDM**", callback_data='entrymodel_IDM')],
-            [InlineKeyboardButton("**Inversion**", callback_data='entrymodel_Inversion')],
-            [InlineKeyboardButton("**SNR**", callback_data='entrymodel_SNR')],
-            [InlineKeyboardButton("**Displacement**", callback_data='entrymodel_Displacement')]
+            [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
+            [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
+            [InlineKeyboardButton("SNR", callback_data='entrymodel_SNR')],
+            [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Entry Model?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
     
     elif query.data == 'edit_entrytf':
         keyboard = [
-            [InlineKeyboardButton("**3m**", callback_data='entrytf_3m')],
-            [InlineKeyboardButton("**5m**", callback_data='entrytf_5m')],
-            [InlineKeyboardButton("**15m**", callback_data='entrytf_15m')],
-            [InlineKeyboardButton("**1H/30m**", callback_data='entrytf_1H/30m')],
-            [InlineKeyboardButton("**4H**", callback_data='entrytf_4H')]
+            [InlineKeyboardButton("3m", callback_data='entrytf_3m')],
+            [InlineKeyboardButton("5m", callback_data='entrytf_5m')],
+            [InlineKeyboardButton("15m", callback_data='entrytf_15m')],
+            [InlineKeyboardButton("1H/30m", callback_data='entrytf_1H/30m')],
+            [InlineKeyboardButton("4H", callback_data='entrytf_4H')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Entry TF?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Entry TF?', reply_markup=reply_markup)
     
     elif query.data == 'edit_pointb':
         keyboard = [
-            [InlineKeyboardButton("**Fractal Swing**", callback_data='pointb_Fractal Swing')],
-            [InlineKeyboardButton("**FVG**", callback_data='pointb_FVG')]
+            [InlineKeyboardButton("Fractal Swing", callback_data='pointb_Fractal Swing')],
+            [InlineKeyboardButton("FVG", callback_data='pointb_FVG')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**Point B?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('Point B?', reply_markup=reply_markup)
     
     elif query.data == 'edit_slposition':
         keyboard = [
-            [InlineKeyboardButton("**LTF/Lunch Manipulation**", callback_data='slposition_LTF/Lunch Manipulation')],
-            [InlineKeyboardButton("**1H/30m Raid**", callback_data='slposition_1H/30m Raid')],
-            [InlineKeyboardButton("**4H Raid**", callback_data='slposition_4H Raid')]
+            [InlineKeyboardButton("LTF/Lunch Manipulation", callback_data='slposition_LTF/Lunch Manipulation')],
+            [InlineKeyboardButton("1H/30m Raid", callback_data='slposition_1H/30m Raid')],
+            [InlineKeyboardButton("4H Raid", callback_data='slposition_4H Raid')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text('**SL Position?**', parse_mode='MarkdownV2', reply_markup=reply_markup)
+        await query.edit_message_text('SL Position?', reply_markup=reply_markup)
     
     elif query.data == 'edit_rr':
         async with user_data_lock:
             user_data[auth_key]['waiting_for_rr'] = True
-        await context.bot.send_message(chat_id=query.message.chat_id, text='**Введи RR вручну (наприклад, 2.5):**', parse_mode='MarkdownV2')
+        await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):')
 
 # Головна функція для запуску бота
 def main():
     logger.info("Starting bot with TELEGRAM_TOKEN: [REDACTED]")
     application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(30).write_timeout(30).build()
     application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('restart', restart))
+    application.add_handler(CommandHandler('restart', restart))  # Додаємо команду /restart
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     logger.info("Bot handlers registered. Starting polling...")
-    application.run_polling(allowed_updates=Update.ALL, drop_pending_updates=True)
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
