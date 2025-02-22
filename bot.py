@@ -2,8 +2,9 @@ import requests
 import json
 import os
 import logging
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Request
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram.request import HTTPXRequest  # Оновлений імпорт для v20+
 import heroku3
 import asyncio
 
@@ -15,7 +16,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Конфігурація через змінні середовища
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '7947810667:AAFAFahelospvLx501EQX2TacNzw0YS4zxw')
 CLIENT_ID = os.getenv('NOTION_CLIENT_ID')
 CLIENT_SECRET = os.getenv('NOTION_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('REDIRECT_URI')
@@ -36,7 +37,7 @@ async def save_user_data_to_heroku():
     async with user_data_lock:
         try:
             conn = heroku3.from_key(HEROKU_API_KEY)
-            heroku_app = conn.apps()['tradenotionbot-lg2']
+            heroku_app = conn.apps()['tradenotionbot-lg2']  # Оновіть назву додатку, якщо потрібно
             heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
             logger.info("HEROKU_USER_DATA оновлено в Heroku.")
         except Exception as e:
@@ -157,7 +158,7 @@ async def start(update, context):
             classification_db_id = fetch_classification_db_id(user_data[auth_key]['parent_page_id'], user_data[auth_key]['notion_token'])
             if classification_db_id:
                 user_data[auth_key]['classification_db_id'] = classification_db_id
-                await save_user_data_to_heroku()  # Зберігаємо лише тут
+                await save_user_data_to_heroku()
                 keyboard = [
                     [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
                     [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
@@ -187,7 +188,7 @@ async def handle_text(update, context):
             text = update.message.text
             if len(text) == 32:
                 user_data[auth_key]['parent_page_id'] = text
-                await save_user_data_to_heroku()  # Зберігаємо лише тут
+                await save_user_data_to_heroku()
                 await update.message.reply_text('ID сторінки збережено! Напиши /start.')
             else:
                 await update.message.reply_text('Неправильний ID. Введи 32 символи з URL сторінки "A-B-C position Final Bot".')
@@ -600,7 +601,7 @@ async def button(update, context):
                     'SL Position': user_data[auth_key].get('SL Position'),
                     'RR': user_data[auth_key].get('RR')
                 }
-                await save_user_data_to_heroku()  # Зберігаємо лише після завершення трейду
+                await save_user_data_to_heroku()
                 await query.edit_message_text("Трейд успішно додано до Notion!")
                 
                 await asyncio.sleep(5)
@@ -815,13 +816,13 @@ async def button(update, context):
 def main():
     logger.info("Starting bot...")
     try:
-        # Налаштування Application з більшими таймаутами
-        application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(60).write_timeout(60).get_updates_request(Request(con_pool_size=8, connect_timeout=10, read_timeout=60)).build()
+        # Використовуємо HTTPXRequest замість базового Request
+        request = HTTPXRequest(connection_pool_size=8, read_timeout=60, write_timeout=60)
+        application = Application.builder().token(TELEGRAM_TOKEN).request(request).build()
         application.add_handler(CommandHandler('start', start))
         application.add_handler(CallbackQueryHandler(button))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
         logger.info("Bot handlers registered. Starting polling...")
-        # Полінг із вказанням типів оновлень і таймаутом
         application.run_polling(allowed_updates=["message", "callback_query"], timeout=60)
     except Exception as e:
         logger.critical(f"Bot crashed: {str(e)}", exc_info=True)
