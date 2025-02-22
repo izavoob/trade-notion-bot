@@ -5,6 +5,7 @@ import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 import heroku3
+import asyncio
 
 # Налаштування логування
 logging.basicConfig(
@@ -21,6 +22,7 @@ REDIRECT_URI = os.getenv('REDIRECT_URI')
 HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 
 user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
+user_data_lock = asyncio.Lock()  # Асинхронне блокування
 logger.info(f"Initial user_data loaded from HEROKU_USER_DATA: {json.dumps(user_data, indent=2)}")
 
 # Функція для отримання ID бази "Classification" із батьківської сторінки
@@ -61,104 +63,104 @@ def fetch_classification_db_id(page_id, notion_token):
 
 # Початок роботи бота
 async def start(update, context):
-    global user_data
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
-    logger.info(f"Start command received from user {user_id}. Current user_data: {json.dumps(user_data, indent=2)}")
+    logger.info(f"Start command received from user {user_id}")
     
-    if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
-        instructions = (
-            "Щоб використовувати бота:\n"
-            "1. Скопіюй сторінку за посиланням: https://www.notion.so/A-B-C-position-Final-Bot-1a084b079a8280d29d5ecc9316e02c5d\n"
-            "2. Авторизуйся нижче і введи ID батьківської сторінки 'A-B-C position Final Bot' (32 символи з URL)."
-        )
-        auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
-        logger.info(f"Generated Notion auth URL for user {user_id}: {auth_url}")
-        keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(instructions, reply_markup=reply_markup)
-    elif 'parent_page_id' not in user_data[auth_key]:
-        await update.message.reply_text('Введи ID батьківської сторінки "A-B-C position Final Bot" (32 символи з URL):')
-        logger.info(f"Prompted user {user_id} to enter parent page ID.")
-    elif 'classification_db_id' not in user_data[auth_key]:
-        logger.info(f"Fetching Classification DB ID for user {user_id} with parent_page_id: {user_data[auth_key]['parent_page_id']}")
-        classification_db_id = fetch_classification_db_id(user_data[auth_key]['parent_page_id'], user_data[auth_key]['notion_token'])
-        if classification_db_id:
-            user_data[auth_key]['classification_db_id'] = classification_db_id
-            conn = heroku3.from_key(HEROKU_API_KEY)
-            heroku_app = conn.apps()['tradenotionbot-lg2']
-            heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-            logger.info(f"Saved classification_db_id: {classification_db_id} to user_data for {auth_key}: {json.dumps(user_data[auth_key], indent=2)}")
+    async with user_data_lock:
+        if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
+            instructions = (
+                "Щоб використовувати бота:\n"
+                "1. Скопіюй сторінку за посиланням: https://www.notion.so/A-B-C-position-Final-Bot-1a084b079a8280d29d5ecc9316e02c5d\n"
+                "2. Авторизуйся нижче і введи ID батьківської сторінки 'A-B-C position Final Bot' (32 символи з URL)."
+            )
+            auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
+            logger.info(f"Generated Notion auth URL for user {user_id}: {auth_url}")
+            keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(instructions, reply_markup=reply_markup)
+        elif 'parent_page_id' not in user_data[auth_key]:
+            await update.message.reply_text('Введи ID батьківської сторінки "A-B-C position Final Bot" (32 символи з URL):')
+            logger.info(f"Prompted user {user_id} to enter parent page ID.")
+        elif 'classification_db_id' not in user_data[auth_key]:
+            logger.info(f"Fetching Classification DB ID for user {user_id} with parent_page_id: {user_data[auth_key]['parent_page_id']}")
+            classification_db_id = fetch_classification_db_id(user_data[auth_key]['parent_page_id'], user_data[auth_key]['notion_token'])
+            if classification_db_id:
+                user_data[auth_key]['classification_db_id'] = classification_db_id
+                conn = heroku3.from_key(HEROKU_API_KEY)
+                heroku_app = conn.apps()['tradenotionbot-lg2']
+                heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+                logger.info(f"Saved classification_db_id: {classification_db_id} to user_data for {auth_key}")
+                keyboard = [
+                    [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
+                    [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
+            else:
+                logger.error(f"Failed to fetch Classification DB ID for user {user_id}")
+                await update.message.reply_text('Помилка: не вдалося знайти базу "Classification". Перевір правильність ID сторінки.')
+        else:
             keyboard = [
                 [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
                 [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
-        else:
-            logger.error(f"Failed to fetch Classification DB ID for user {user_id}")
-            await update.message.reply_text('Помилка: не вдалося знайти базу "Classification". Перевір правильність ID сторінки.')
-    else:
-        keyboard = [
-            [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
-            [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
-        logger.info(f"User {user_id} ready to choose action. Current user_data: {json.dumps(user_data[auth_key], indent=2)}")
+            logger.info(f"User {user_id} ready to choose action")
 
 # Обробка текстового вводу
 async def handle_text(update, context):
-    global user_data
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
     logger.info(f"Text input received from user {user_id}: {update.message.text}")
     
-    if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
-        await update.message.reply_text("Спочатку авторизуйся через /start.")
-        logger.warning(f"User {user_id} not authenticated.")
-    elif 'parent_page_id' not in user_data[auth_key]:
-        text = update.message.text
-        if len(text) == 32:
-            user_data[auth_key]['parent_page_id'] = text
-            conn = heroku3.from_key(HEROKU_API_KEY)
-            heroku_app = conn.apps()['tradenotionbot-lg2']
-            heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-            logger.info(f"Saved parent_page_id: {text} for user {user_id}. Updated user_data: {json.dumps(user_data[auth_key], indent=2)}")
-            await update.message.reply_text('ID сторінки збережено! Напиши /start.')
-        else:
-            logger.warning(f"Invalid parent_page_id length from user {user_id}: {text}")
-            await update.message.reply_text('Неправильний ID. Введи 32 символи з URL сторінки "A-B-C position Final Bot".')
-    elif 'waiting_for_rr' in user_data[auth_key]:
-        rr_input = update.message.text
-        logger.info(f"Received RR input from user {user_id}: {rr_input}")
-        try:
-            rr = float(rr_input)
-            user_data[auth_key]['RR'] = rr
-            required_keys = ['Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
-                            'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']
-            missing_keys = [key for key in required_keys if key not in user_data[auth_key]]
-            if missing_keys:
-                logger.error(f"Missing required keys for user {user_id}: {missing_keys}")
-                await update.message.reply_text(f"Помилка: відсутні дані для {', '.join(missing_keys)}. Почни заново через 'Додати трейд'.")
+    async with user_data_lock:
+        if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
+            await update.message.reply_text("Спочатку авторизуйся через /start.")
+            logger.warning(f"User {user_id} not authenticated.")
+        elif 'parent_page_id' not in user_data[auth_key]:
+            text = update.message.text
+            if len(text) == 32:
+                user_data[auth_key]['parent_page_id'] = text
+                conn = heroku3.from_key(HEROKU_API_KEY)
+                heroku_app = conn.apps()['tradenotionbot-lg2']
+                heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+                logger.info(f"Saved parent_page_id: {text} for user {user_id}")
+                await update.message.reply_text('ID сторінки збережено! Напиши /start.')
             else:
-                summary = format_summary(user_data[auth_key])
-                keyboard = [
-                    [InlineKeyboardButton("Відправити", callback_data='submit_trade')],
-                    [InlineKeyboardButton("Змінити", callback_data='edit_trade')]
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                await update.message.reply_text(f"{summary}\n\nПеревір дані. Якщо все правильно, натисни 'Відправити'. Якщо щось не так, натисни 'Змінити'.", reply_markup=reply_markup)
-                logger.info(f"Displayed summary for user {user_id} to confirm or edit.")
-        except ValueError:
-            logger.warning(f"Invalid RR input from user {user_id}: {rr_input}")
-            await update.message.reply_text("Введи коректне число для RR (наприклад, 2.5):")
-        except Exception as e:
-            logger.error(f"Error processing RR for user {user_id}: {str(e)}", exc_info=True)
-            await update.message.reply_text(f"Помилка при обробці RR: {str(e)}. Спробуй ще раз.")
-    else:
-        await update.message.reply_text("Спочатку почни додавання трейду через /start.")
-        logger.info(f"User {user_id} sent text outside of trade flow: {update.message.text}")
+                logger.warning(f"Invalid parent_page_id length from user {user_id}: {text}")
+                await update.message.reply_text('Неправильний ID. Введи 32 символи з URL сторінки "A-B-C position Final Bot".')
+        elif 'waiting_for_rr' in user_data[auth_key]:
+            rr_input = update.message.text
+            logger.info(f"Received RR input from user {user_id}: {rr_input}")
+            try:
+                rr = float(rr_input)
+                user_data[auth_key]['RR'] = rr
+                required_keys = ['Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
+                                'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']
+                missing_keys = [key for key in required_keys if key not in user_data[auth_key]]
+                if missing_keys:
+                    logger.error(f"Missing required keys for user {user_id}: {missing_keys}")
+                    await update.message.reply_text(f"Помилка: відсутні дані для {', '.join(missing_keys)}. Почни заново через 'Додати трейд'.")
+                else:
+                    summary = format_summary(user_data[auth_key])
+                    keyboard = [
+                        [InlineKeyboardButton("Відправити", callback_data='submit_trade')],
+                        [InlineKeyboardButton("Змінити", callback_data='edit_trade')]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    await update.message.reply_text(f"{summary}\n\nПеревір дані. Якщо все правильно, натисни 'Відправити'. Якщо щось не так, натисни 'Змінити'.", reply_markup=reply_markup)
+                    logger.info(f"Displayed summary for user {user_id} to confirm or edit.")
+            except ValueError:
+                logger.warning(f"Invalid RR input from user {user_id}: {rr_input}")
+                await update.message.reply_text("Введи коректне число для RR (наприклад, 2.5):")
+            except Exception as e:
+                logger.error(f"Error processing RR for user {user_id}: {str(e)}", exc_info=True)
+                await update.message.reply_text(f"Помилка при обробці RR: {str(e)}. Спробуй ще раз.")
+        else:
+            await update.message.reply_text("Спочатку почни додавання трейду через /start.")
+            logger.info(f"User {user_id} sent text outside of trade flow: {update.message.text}")
 
 # Форматування підсумку
 def format_summary(data):
@@ -229,7 +231,6 @@ def create_notion_page(user_id):
 
 # Обробка кнопок
 async def button(update, context):
-    global user_data
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
@@ -237,20 +238,21 @@ async def button(update, context):
     
     await query.answer()
     
-    if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
-        await query.edit_message_text("Спочатку авторизуйся через /start.")
-        logger.warning(f"User {user_id} not authenticated for button callback.")
-        return
-    if 'parent_page_id' not in user_data[auth_key]:
-        await query.edit_message_text("Спочатку введи ID сторінки через /start.")
-        logger.warning(f"User {user_id} has not provided parent_page_id.")
-        return
-    
-    # Ініціалізація списків для мультивибору, якщо їх ще немає
-    if 'Trigger' not in user_data[auth_key] or not isinstance(user_data[auth_key]['Trigger'], list):
-        user_data[auth_key]['Trigger'] = []
-    if 'VC' not in user_data[auth_key] or not isinstance(user_data[auth_key]['VC'], list):
-        user_data[auth_key]['VC'] = []
+    async with user_data_lock:
+        if auth_key not in user_data or 'notion_token' not in user_data[auth_key]:
+            await query.edit_message_text("Спочатку авторизуйся через /start.")
+            logger.warning(f"User {user_id} not authenticated for button callback.")
+            return
+        if 'parent_page_id' not in user_data[auth_key]:
+            await query.edit_message_text("Спочатку введи ID сторінки через /start.")
+            logger.warning(f"User {user_id} has not provided parent_page_id.")
+            return
+        
+        # Ініціалізація списків для мультивибору, якщо їх ще немає
+        if 'Trigger' not in user_data[auth_key] or not isinstance(user_data[auth_key]['Trigger'], list):
+            user_data[auth_key]['Trigger'] = []
+        if 'VC' not in user_data[auth_key] or not isinstance(user_data[auth_key]['VC'], list):
+            user_data[auth_key]['VC'] = []
 
     # Логіка повернення назад і мультивибору
     if query.data == 'add_trade':
@@ -266,8 +268,9 @@ async def button(update, context):
         logger.info(f"User {user_id} started trade flow with Pair selection.")
     
     elif query.data.startswith('pair_'):
-        user_data[auth_key]['Pair'] = query.data.split('_')[1]
-        logger.info(f"Updated Pair for user {user_id}: {user_data[auth_key]['Pair']}")
+        async with user_data_lock:
+            user_data[auth_key]['Pair'] = query.data.split('_')[1]
+            logger.info(f"Updated Pair for user {user_id}: {user_data[auth_key]['Pair']}")
         keyboard = [
             [InlineKeyboardButton("Asia", callback_data='session_Asia')],
             [InlineKeyboardButton("Frankfurt", callback_data='session_Frankfurt')],
@@ -280,8 +283,9 @@ async def button(update, context):
         await query.edit_message_text('Session?', reply_markup=reply_markup)
     
     elif query.data.startswith('session_'):
-        user_data[auth_key]['Session'] = query.data.split('_')[1]
-        logger.info(f"Updated Session for user {user_id}: {user_data[auth_key]['Session']}")
+        async with user_data_lock:
+            user_data[auth_key]['Session'] = query.data.split('_')[1]
+            logger.info(f"Updated Session for user {user_id}: {user_data[auth_key]['Session']}")
         keyboard = [
             [InlineKeyboardButton("By Context", callback_data='context_By Context')],
             [InlineKeyboardButton("Against Context", callback_data='context_Against Context')],
@@ -292,8 +296,9 @@ async def button(update, context):
         await query.edit_message_text('Context?', reply_markup=reply_markup)
     
     elif query.data.startswith('context_'):
-        user_data[auth_key]['Context'] = query.data.split('_')[1]
-        logger.info(f"Updated Context for user {user_id}: {user_data[auth_key]['Context']}")
+        async with user_data_lock:
+            user_data[auth_key]['Context'] = query.data.split('_')[1]
+            logger.info(f"Updated Context for user {user_id}: {user_data[auth_key]['Context']}")
         keyboard = [
             [InlineKeyboardButton("Minimal", callback_data='testpoi_Minimal')],
             [InlineKeyboardButton(">50% or FullFill", callback_data='testpoi_>50% or FullFill')],
@@ -303,8 +308,9 @@ async def button(update, context):
         await query.edit_message_text('Test POI?', reply_markup=reply_markup)
     
     elif query.data.startswith('testpoi_'):
-        user_data[auth_key]['Test POI'] = query.data.split('_')[1]
-        logger.info(f"Updated Test POI for user {user_id}: {user_data[auth_key]['Test POI']}")
+        async with user_data_lock:
+            user_data[auth_key]['Test POI'] = query.data.split('_')[1]
+            logger.info(f"Updated Test POI for user {user_id}: {user_data[auth_key]['Test POI']}")
         keyboard = [
             [InlineKeyboardButton("Non-agressive", callback_data='delivery_Non-agressive')],
             [InlineKeyboardButton("Agressive", callback_data='delivery_Agressive')],
@@ -314,8 +320,9 @@ async def button(update, context):
         await query.edit_message_text('Delivery to POI?', reply_markup=reply_markup)
     
     elif query.data.startswith('delivery_'):
-        user_data[auth_key]['Delivery to POI'] = query.data.split('_')[1]
-        logger.info(f"Updated Delivery to POI for user {user_id}: {user_data[auth_key]['Delivery to POI']}")
+        async with user_data_lock:
+            user_data[auth_key]['Delivery to POI'] = query.data.split('_')[1]
+            logger.info(f"Updated Delivery to POI for user {user_id}: {user_data[auth_key]['Delivery to POI']}")
         keyboard = [
             [InlineKeyboardButton("Fractal Raid", callback_data='pointa_Fractal Raid')],
             [InlineKeyboardButton("RB", callback_data='pointa_RB')],
@@ -327,9 +334,10 @@ async def button(update, context):
         await query.edit_message_text('Point A?', reply_markup=reply_markup)
     
     elif query.data.startswith('pointa_'):
-        user_data[auth_key]['Point A'] = query.data.split('_')[1]
-        logger.info(f"Updated Point A for user {user_id}: {user_data[auth_key]['Point A']}")
-        user_data[auth_key]['Trigger'] = []  # Очищаємо Trigger перед початком вибору
+        async with user_data_lock:
+            user_data[auth_key]['Point A'] = query.data.split('_')[1]
+            user_data[auth_key]['Trigger'] = []  # Очищаємо Trigger перед початком вибору
+            logger.info(f"Updated Point A for user {user_id}: {user_data[auth_key]['Point A']}")
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
@@ -342,12 +350,13 @@ async def button(update, context):
     
     elif query.data.startswith('trigger_') and query.data != 'trigger_done':
         trigger_value = query.data.split('_')[1]
-        if trigger_value in user_data[auth_key]['Trigger']:
-            user_data[auth_key]['Trigger'].remove(trigger_value)
-            logger.info(f"Removed Trigger for user {user_id}: {trigger_value}. Current Trigger: {user_data[auth_key]['Trigger']}")
-        else:
-            user_data[auth_key]['Trigger'].append(trigger_value)
-            logger.info(f"Added Trigger for user {user_id}: {trigger_value}. Current Trigger: {user_data[auth_key]['Trigger']}")
+        async with user_data_lock:
+            if trigger_value in user_data[auth_key]['Trigger']:
+                user_data[auth_key]['Trigger'].remove(trigger_value)
+                logger.info(f"Removed Trigger for user {user_id}: {trigger_value}. Current Trigger: {user_data[auth_key]['Trigger']}")
+            else:
+                user_data[auth_key]['Trigger'].append(trigger_value)
+                logger.info(f"Added Trigger for user {user_id}: {trigger_value}. Current Trigger: {user_data[auth_key]['Trigger']}")
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
@@ -359,11 +368,12 @@ async def button(update, context):
         await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'trigger_done':
-        if not user_data[auth_key]['Trigger']:
-            await query.edit_message_text("Обери хоча б один Trigger!")
-            return
-        logger.info(f"Trigger selection completed for user {user_id}: {user_data[auth_key]['Trigger']}")
-        user_data[auth_key]['VC'] = []  # Очищаємо VC перед початком вибору
+        async with user_data_lock:
+            if not user_data[auth_key]['Trigger']:
+                await query.edit_message_text("Обери хоча б один Trigger!")
+                return
+            logger.info(f"Trigger selection completed for user {user_id}: {user_data[auth_key]['Trigger']}")
+            user_data[auth_key]['VC'] = []  # Очищаємо VC перед початком вибору
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
@@ -376,12 +386,13 @@ async def button(update, context):
     
     elif query.data.startswith('vc_') and query.data != 'vc_done':
         vc_value = query.data.split('_')[1]
-        if vc_value in user_data[auth_key]['VC']:
-            user_data[auth_key]['VC'].remove(vc_value)
-            logger.info(f"Removed VC for user {user_id}: {vc_value}. Current VC: {user_data[auth_key]['VC']}")
-        else:
-            user_data[auth_key]['VC'].append(vc_value)
-            logger.info(f"Added VC for user {user_id}: {vc_value}. Current VC: {user_data[auth_key]['VC']}")
+        async with user_data_lock:
+            if vc_value in user_data[auth_key]['VC']:
+                user_data[auth_key]['VC'].remove(vc_value)
+                logger.info(f"Removed VC for user {user_id}: {vc_value}. Current VC: {user_data[auth_key]['VC']}")
+            else:
+                user_data[auth_key]['VC'].append(vc_value)
+                logger.info(f"Added VC for user {user_id}: {vc_value}. Current VC: {user_data[auth_key]['VC']}")
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
@@ -393,10 +404,11 @@ async def button(update, context):
         await query.edit_message_text(f"VC? (Обрано: {', '.join(user_data[auth_key]['VC']) if user_data[auth_key]['VC'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'vc_done':
-        if not user_data[auth_key]['VC']:
-            await query.edit_message_text("Обери хоча б один VC!")
-            return
-        logger.info(f"VC selection completed for user {user_id}: {user_data[auth_key]['VC']}")
+        async with user_data_lock:
+            if not user_data[auth_key]['VC']:
+                await query.edit_message_text("Обери хоча б один VC!")
+                return
+            logger.info(f"VC selection completed for user {user_id}: {user_data[auth_key]['VC']}")
         keyboard = [
             [InlineKeyboardButton("IDM", callback_data='entrymodel_IDM')],
             [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
@@ -408,8 +420,9 @@ async def button(update, context):
         await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
     
     elif query.data.startswith('entrymodel_'):
-        user_data[auth_key]['Entry Model'] = query.data.split('_')[1]
-        logger.info(f"Updated Entry Model for user {user_id}: {user_data[auth_key]['Entry Model']}")
+        async with user_data_lock:
+            user_data[auth_key]['Entry Model'] = query.data.split('_')[1]
+            logger.info(f"Updated Entry Model for user {user_id}: {user_data[auth_key]['Entry Model']}")
         keyboard = [
             [InlineKeyboardButton("3m", callback_data='entrytf_3m')],
             [InlineKeyboardButton("5m", callback_data='entrytf_5m')],
@@ -422,8 +435,9 @@ async def button(update, context):
         await query.edit_message_text('Entry TF?', reply_markup=reply_markup)
     
     elif query.data.startswith('entrytf_'):
-        user_data[auth_key]['Entry TF'] = query.data.split('_')[1]
-        logger.info(f"Updated Entry TF for user {user_id}: {user_data[auth_key]['Entry TF']}")
+        async with user_data_lock:
+            user_data[auth_key]['Entry TF'] = query.data.split('_')[1]
+            logger.info(f"Updated Entry TF for user {user_id}: {user_data[auth_key]['Entry TF']}")
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='pointb_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='pointb_FVG')],
@@ -433,8 +447,9 @@ async def button(update, context):
         await query.edit_message_text('Point B?', reply_markup=reply_markup)
     
     elif query.data.startswith('pointb_'):
-        user_data[auth_key]['Point B'] = query.data.split('_')[1]
-        logger.info(f"Updated Point B for user {user_id}: {user_data[auth_key]['Point B']}")
+        async with user_data_lock:
+            user_data[auth_key]['Point B'] = query.data.split('_')[1]
+            logger.info(f"Updated Point B for user {user_id}: {user_data[auth_key]['Point B']}")
         keyboard = [
             [InlineKeyboardButton("LTF/Lunch Manipulation", callback_data='slposition_LTF/Lunch Manipulation')],
             [InlineKeyboardButton("1H/30m Raid", callback_data='slposition_1H/30m Raid')],
@@ -445,9 +460,10 @@ async def button(update, context):
         await query.edit_message_text('SL Position?', reply_markup=reply_markup)
     
     elif query.data.startswith('slposition_'):
-        user_data[auth_key]['SL Position'] = query.data.split('_')[1]
-        user_data[auth_key]['waiting_for_rr'] = True
-        logger.info(f"Updated SL Position and set waiting_for_rr for user {user_id}: {json.dumps(user_data[auth_key], indent=2)}")
+        async with user_data_lock:
+            user_data[auth_key]['SL Position'] = query.data.split('_')[1]
+            user_data[auth_key]['waiting_for_rr'] = True
+            logger.info(f"Updated SL Position and set waiting_for_rr for user {user_id}")
         await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Назад", callback_data='back_to_pointb')]]))
 
     # Логіка повернення назад
@@ -577,61 +593,64 @@ async def button(update, context):
 
     # Логіка підтвердження або редагування
     elif query.data == 'submit_trade':
-        success = create_notion_page(auth_key)
+        async with user_data_lock:
+            success = create_notion_page(auth_key)
+            if success:
+                # Зберігаємо останній трейд перед очищенням
+                user_data[auth_key]['last_trade'] = {
+                    'Pair': user_data[auth_key].get('Pair'),
+                    'Session': user_data[auth_key].get('Session'),
+                    'Context': user_data[auth_key].get('Context'),
+                    'Test POI': user_data[auth_key].get('Test POI'),
+                    'Delivery to POI': user_data[auth_key].get('Delivery to POI'),
+                    'Point A': user_data[auth_key].get('Point A'),
+                    'Trigger': user_data[auth_key].get('Trigger', []).copy(),
+                    'VC': user_data[auth_key].get('VC', []).copy(),
+                    'Entry Model': user_data[auth_key].get('Entry Model'),
+                    'Entry TF': user_data[auth_key].get('Entry TF'),
+                    'Point B': user_data[auth_key].get('Point B'),
+                    'SL Position': user_data[auth_key].get('SL Position'),
+                    'RR': user_data[auth_key].get('RR')
+                }
+                await query.edit_message_text("Трейд успішно додано до Notion!")
+                conn = heroku3.from_key(HEROKU_API_KEY)
+                heroku_app = conn.apps()['tradenotionbot-lg2']
+                heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+                logger.info(f"Trade submitted successfully for user {user_id}")
+                # Очищаємо всі параметри для нового трейду
+                for key in ['waiting_for_rr', 'Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
+                            'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']:
+                    if key in user_data[auth_key]:
+                        del user_data[auth_key][key]
+                # Явно ініціалізуємо Trigger і VC як порожні списки
+                user_data[auth_key]['Trigger'] = []
+                user_data[auth_key]['VC'] = []
+            else:
+                await query.edit_message_text("Помилка при відправці трейду в Notion. Перевір логи.")
         if success:
-            # Зберігаємо останній трейд перед очищенням
-            user_data[auth_key]['last_trade'] = {
-                'Pair': user_data[auth_key].get('Pair'),
-                'Session': user_data[auth_key].get('Session'),
-                'Context': user_data[auth_key].get('Context'),
-                'Test POI': user_data[auth_key].get('Test POI'),
-                'Delivery to POI': user_data[auth_key].get('Delivery to POI'),
-                'Point A': user_data[auth_key].get('Point A'),
-                'Trigger': user_data[auth_key].get('Trigger', []).copy(),
-                'VC': user_data[auth_key].get('VC', []).copy(),
-                'Entry Model': user_data[auth_key].get('Entry Model'),
-                'Entry TF': user_data[auth_key].get('Entry TF'),
-                'Point B': user_data[auth_key].get('Point B'),
-                'SL Position': user_data[auth_key].get('SL Position'),
-                'RR': user_data[auth_key].get('RR')
-            }
-            await query.edit_message_text("Трейд успішно додано до Notion!")
-            conn = heroku3.from_key(HEROKU_API_KEY)
-            heroku_app = conn.apps()['tradenotionbot-lg2']
-            heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-            logger.info(f"Trade submitted successfully for user {user_id}. Updated user_data: {json.dumps(user_data, indent=2)}")
-            # Очищаємо всі параметри для нового трейду
-            for key in ['waiting_for_rr', 'Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
-                        'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']:
-                if key in user_data[auth_key]:
-                    del user_data[auth_key][key]
-            # Явно ініціалізуємо Trigger і VC як порожні списки
-            user_data[auth_key]['Trigger'] = []
-            user_data[auth_key]['VC'] = []
             keyboard = [
                 [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
                 [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await context.bot.send_message(chat_id=query.message.chat_id, text="Вибери дію:", reply_markup=reply_markup)
-        else:
-            await query.edit_message_text("Помилка при відправці трейду в Notion. Перевір логи.")
     
     elif query.data == 'view_last_trade':
-        if 'last_trade' in user_data[auth_key] and user_data[auth_key]['last_trade']:
-            summary = format_summary(user_data[auth_key]['last_trade'])
-            keyboard = [
-                [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
-                [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await query.edit_message_text(f"Останній трейд:\n{summary}\n\nВибери дію:", reply_markup=reply_markup)
-        else:
-            keyboard = [
-                [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await query.edit_message_text("Ще немає відправлених трейдів. Вибери дію:", reply_markup=reply_markup)
+        async with user_data_lock:
+            if 'last_trade' in user_data[auth_key] and user_data[auth_key]['last_trade']:
+                summary = format_summary(user_data[auth_key]['last_trade'])
+                keyboard = [
+                    [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
+                    [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await query.edit_message_text(f"Останній трейд:\n{summary}\n\nВибери дію:", reply_markup=reply_markup)
+            else:
+                keyboard = [
+                    [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await query.edit_message_text("Ще немає відправлених трейдів. Вибери дію:", reply_markup=reply_markup)
     
     elif query.data == 'edit_trade':
         keyboard = [
@@ -711,7 +730,8 @@ async def button(update, context):
         await query.edit_message_text('Point A?', reply_markup=reply_markup)
     
     elif query.data == 'edit_trigger':
-        user_data[auth_key]['Trigger'] = []  # Очищаємо попередні вибори
+        async with user_data_lock:
+            user_data[auth_key]['Trigger'] = []  # Очищаємо попередні вибори
         keyboard = [
             [InlineKeyboardButton("Fractal Swing", callback_data='trigger_Fractal Swing')],
             [InlineKeyboardButton("FVG", callback_data='trigger_FVG')],
@@ -722,7 +742,8 @@ async def button(update, context):
         await query.edit_message_text(f"Trigger? (Обрано: {', '.join(user_data[auth_key]['Trigger']) if user_data[auth_key]['Trigger'] else 'Нічого не обрано'})", reply_markup=reply_markup)
     
     elif query.data == 'edit_vc':
-        user_data[auth_key]['VC'] = []  # Очищаємо попередні вибори
+        async with user_data_lock:
+            user_data[auth_key]['VC'] = []  # Очищаємо попередні вибори
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
@@ -771,7 +792,8 @@ async def button(update, context):
         await query.edit_message_text('SL Position?', reply_markup=reply_markup)
     
     elif query.data == 'edit_rr':
-        user_data[auth_key]['waiting_for_rr'] = True
+        async with user_data_lock:
+            user_data[auth_key]['waiting_for_rr'] = True
         await context.bot.send_message(chat_id=query.message.chat_id, text='Введи RR вручну (наприклад, 2.5):')
 
 # Головна функція для запуску бота
