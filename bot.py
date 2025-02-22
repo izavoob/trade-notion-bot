@@ -21,9 +21,15 @@ CLIENT_SECRET = os.getenv('NOTION_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('REDIRECT_URI')
 HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 
-user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
+# Завантажуємо user_data із змінної Heroku з обробкою помилок
+raw_user_data = os.getenv('HEROKU_USER_DATA', '{}')
+try:
+    user_data = json.loads(raw_user_data)
+except json.JSONDecodeError:
+    logger.error(f"Помилка парсингу HEROKU_USER_DATA: '{raw_user_data}'. Використовуємо порожній словник.")
+    user_data = {}
 user_data_lock = asyncio.Lock()
-logger.info(f"Initial user_data loaded from HEROKU_USER_DATA: {json.dumps(user_data, indent=2)}")
+logger.info(f"Initial user_data loaded: {json.dumps(user_data, indent=2)}")
 
 # Функція для отримання ID бази "Classification" із батьківської сторінки
 def fetch_classification_db_id(page_id, notion_token):
@@ -46,7 +52,7 @@ def fetch_classification_db_id(page_id, notion_token):
     logger.error("Classification database not found on parent page.")
     return None
 
-# Функція для створення сторінки в Notion (повертає ID сторінки)
+# Функція для створення сторінки в Notion
 def create_notion_page(user_id):
     logger.debug(f"Starting create_notion_page for user {user_id}")
     url = 'https://api.notion.com/v1/pages'
@@ -106,7 +112,6 @@ def fetch_page_properties(page_id, notion_token):
     data = response.json()
     properties = data.get('properties', {})
     
-    # Витягуємо Score (formula як number), Trade Class (formula як string), Offer Risk (formula як number)
     score = properties.get('Score', {}).get('formula', {}).get('number', None)
     trade_class = properties.get('Trade Class', {}).get('formula', {}).get('string', None)
     offer_risk = properties.get('Offer Risk', {}).get('formula', {}).get('number', None)
@@ -231,8 +236,7 @@ async def button(update, context):
     query = update.callback_query
     user_id = str(query.from_user.id)
     auth_key = f"{user_id}user"
-    logger.info(f"Button callback received from user {user_id}: {query.data}")
-    
+    logger.info(f"Button pressed: {query.data} by user {user_id}")
     await query.answer()
     
     async with user_data_lock:
@@ -567,12 +571,11 @@ async def button(update, context):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Point B?', reply_markup=reply_markup)
 
-    # Оновлена логіка підтвердження трейду
+    # Логіка підтвердження трейду
     elif query.data == 'submit_trade':
         async with user_data_lock:
             page_id = create_notion_page(auth_key)
             if page_id:
-                # Зберігаємо останній трейд перед очищенням
                 user_data[auth_key]['last_trade'] = {
                     'Pair': user_data[auth_key].get('Pair'),
                     'Session': user_data[auth_key].get('Session'),
@@ -588,13 +591,10 @@ async def button(update, context):
                     'SL Position': user_data[auth_key].get('SL Position'),
                     'RR': user_data[auth_key].get('RR')
                 }
-                # Відправляємо перше повідомлення
                 await query.edit_message_text("Трейд успішно додано до Notion!")
                 
-                # Затримка 5 секунд для обробки формул у Notion
                 await asyncio.sleep(5)
                 
-                # Отримуємо властивості сторінки
                 properties = fetch_page_properties(page_id, user_data[auth_key]['notion_token'])
                 if properties:
                     score = properties['Score'] if properties['Score'] is not None else "Немає даних"
@@ -615,7 +615,6 @@ async def button(update, context):
                 conn = heroku3.from_key(HEROKU_API_KEY)
                 heroku_app = conn.apps()['tradenotionbot-lg2']
                 heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-                # Очищаємо параметри
                 for key in ['waiting_for_rr', 'Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
                             'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']:
                     if key in user_data[auth_key]:
@@ -807,13 +806,17 @@ async def button(update, context):
 
 # Головна функція для запуску бота
 def main():
-    logger.info("Starting bot with TELEGRAM_TOKEN: [REDACTED]")
-    application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(30).write_timeout(30).build()
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(CallbackQueryHandler(button))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    logger.info("Bot handlers registered. Starting polling...")
-    application.run_polling()
+    logger.info("Starting bot...")
+    try:
+        application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(30).write_timeout(30).build()
+        application.add_handler(CommandHandler('start', start))
+        application.add_handler(CallbackQueryHandler(button))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+        logger.info("Bot handlers registered. Starting polling...")
+        application.run_polling()
+    except Exception as e:
+        logger.critical(f"Bot crashed: {str(e)}", exc_info=True)
+        raise
 
 if __name__ == '__main__':
     main()
