@@ -141,7 +141,9 @@ def fetch_page_properties(page_id, notion_token):
     properties = data.get('properties', {})
     
     num = properties.get('Num', {}).get('number', None)
-    date = properties.get('Date', {}).get('date', {}).get('start', None)
+    # Додаємо перевірку на None для властивості Date
+    date_property = properties.get('Date', None)
+    date = date_property.get('date', {}).get('start', None) if date_property else None
     score = properties.get('Score', {}).get('formula', {}).get('number', None)
     trade_class = properties.get('Trade Class', {}).get('formula', {}).get('string', None)
     offer_risk = properties.get('Offer Risk', {}).get('formula', {}).get('number', None)
@@ -165,7 +167,7 @@ def fetch_last_5_trades(classification_db_id, notion_token):
         "Notion-Version": "2022-06-28"
     }
     payload = {
-        "sorts": [{"timestamp": "created_time", "direction": "descending"}],  # Виправлено на "created_time"
+        "sorts": [{"timestamp": "created_time", "direction": "descending"}],
         "page_size": 5
     }
     response = requests.post(url, json=payload, headers=headers)
@@ -676,24 +678,23 @@ async def button(update, context):
                 
                 properties = fetch_page_properties(page_id, user_data[auth_key]['notion_token'])
                 if properties:
+                    num = properties['Num'] if properties['Num'] is not None else "Немає даних"
+                    date = properties['Date'] if properties['Date'] is not None else "Немає даних"
                     score = properties['Score'] if properties['Score'] is not None else "Немає даних"
                     trade_class = properties['Trade Class'] if properties['Trade Class'] is not None else "Немає даних"
                     offer_risk = properties['Offer Risk'] if properties['Offer Risk'] is not None else "Немає даних"
-                    display_date = datetime.now().strftime("%B %d, %Y")
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,
-                        text=f"ID трейду: {trade_num}\n"
-                             f"Дата: {display_date}\n"
-                             f"Оцінка вашого трейду: {score}\n"
+                        text=f"Трейд №: {num}\n"
+                             f"Доданий: {date}\n"
+                             f"Оцінка трейду: {score}\n"
                              f"Категорія трейду: {trade_class}\n"
-                             f"Рекомендований ризик: {offer_risk}%"  # Додано знак %
+                             f"Ризик: {offer_risk}%"
                     )
                 else:
-                    display_date = datetime.now().strftime("%B %d, %Y")
                     await context.bot.send_message(
                         chat_id=query.message.chat_id,
                         text=f"ID трейду: {trade_num}\n"
-                             f"Дата: {display_date}\n"
                              f"Не вдалося отримати оцінку трейду. Перевір логи."
                     )
                 
@@ -720,15 +721,27 @@ async def button(update, context):
     
     elif query.data == 'view_last_trade':
         async with user_data_lock:
-            if 'last_trade' in user_data[auth_key] and user_data[auth_key]['last_trade']:
-                summary = format_summary(user_data[auth_key]['last_trade'])
+            if 'last_trades' in user_data[auth_key] and user_data[auth_key]['last_trades']:
+                last_trade = user_data[auth_key]['last_trades'][0]['properties']  # Беремо останній доданий трейд
+                num = last_trade['Num'] if last_trade['Num'] is not None else "Немає даних"
+                date = last_trade['Date'] if last_trade['Date'] is not None else "Немає даних"
+                score = last_trade['Score'] if last_trade['Score'] is not None else "Немає даних"
+                trade_class = last_trade['Trade Class'] if last_trade['Trade Class'] is not None else "Немає даних"
+                offer_risk = last_trade['Offer Risk'] if last_trade['Offer Risk'] is not None else "Немає даних"
+                message = (
+                    f"Трейд №: {num}\n"
+                    f"Доданий: {date}\n"
+                    f"Оцінка трейду: {score}\n"
+                    f"Категорія трейду: {trade_class}\n"
+                    f"Ризик: {offer_risk}%"
+                )
                 keyboard = [
                     [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
                     [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
                     [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                await query.edit_message_text(f"Останній трейд:\n{summary}\n\nВибери дію:", reply_markup=reply_markup)
+                await query.edit_message_text(f"Останній трейд:\n{message}\n\nВибери дію:", reply_markup=reply_markup)
             else:
                 keyboard = [
                     [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
@@ -756,7 +769,7 @@ async def button(update, context):
                         f"Доданий: {date}\n"
                         f"Оцінка трейду: {score}\n"
                         f"Категорія трейду: {trade_class}\n"
-                        f"Ризик: {offer_risk}%\n\n"  # Додано знак %
+                        f"Ризик: {offer_risk}%\n\n"
                     )
             else:
                 message = "Не вдалося отримати останні трейди або їх ще немає."
