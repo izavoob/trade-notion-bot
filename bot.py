@@ -363,6 +363,7 @@ async def button(update, context):
             await query.edit_message_text("Обери хоча б один Trigger!")
             return
         logger.info(f"Trigger selection completed for user {user_id}: {user_data[auth_key]['Trigger']}")
+        user_data[auth_key]['VC'] = []  # Очищаємо VC перед початком вибору
         keyboard = [
             [InlineKeyboardButton("SNR", callback_data='vc_SNR')],
             [InlineKeyboardButton("FVG", callback_data='vc_FVG')],
@@ -401,7 +402,7 @@ async def button(update, context):
             [InlineKeyboardButton("Inversion", callback_data='entrymodel_Inversion')],
             [InlineKeyboardButton("SNR", callback_data='entrymodel_SNR')],
             [InlineKeyboardButton("Displacement", callback_data='entrymodel_Displacement')],
-            [InlineKeyboardButton("Назад", callback_data='back_to_vc')]  # Змінено з back_to_trigger на back_to_vc
+            [InlineKeyboardButton("Назад", callback_data='back_to_vc')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text('Entry Model?', reply_markup=reply_markup)
