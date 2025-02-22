@@ -89,7 +89,7 @@ def create_notion_page(user_id):
         logger.error(f"Notion API error for user {user_id}: {response.status_code} - {response.text}")
         return None
 
-# Нова функція для отримання властивостей сторінки з Notion
+# Функція для отримання властивостей сторінки з Notion
 def fetch_page_properties(page_id, notion_token):
     logger.debug(f"Fetching properties for page {page_id}")
     url = f"https://api.notion.com/v1/pages/{page_id}"
@@ -106,9 +106,9 @@ def fetch_page_properties(page_id, notion_token):
     data = response.json()
     properties = data.get('properties', {})
     
-    # Витягуємо Score, Trade Class, Offer Risk (залежить від типу властивостей у вашій базі)
+    # Витягуємо Score (number), Trade Class (formula як string), Offer Risk (number)
     score = properties.get('Score', {}).get('number', None)
-    trade_class = properties.get('Trade Class', {}).get('select', {}).get('name', None)
+    trade_class = properties.get('Trade Class', {}).get('formula', {}).get('string', None)
     offer_risk = properties.get('Offer Risk', {}).get('number', None)
     
     logger.info(f"Retrieved properties - Score: {score}, Trade Class: {trade_class}, Offer Risk: {offer_risk}")
@@ -588,18 +588,29 @@ async def button(update, context):
                     'SL Position': user_data[auth_key].get('SL Position'),
                     'RR': user_data[auth_key].get('RR')
                 }
+                # Відправляємо перше повідомлення
+                await query.edit_message_text("Трейд успішно додано до Notion!")
+                
+                # Затримка 3 секунди для обробки формул у Notion
+                await asyncio.sleep(3)
+                
                 # Отримуємо властивості сторінки
                 properties = fetch_page_properties(page_id, user_data[auth_key]['notion_token'])
                 if properties:
                     score = properties['Score'] if properties['Score'] is not None else "Немає даних"
                     trade_class = properties['Trade Class'] if properties['Trade Class'] is not None else "Немає даних"
                     offer_risk = properties['Offer Risk'] if properties['Offer Risk'] is not None else "Немає даних"
-                    await query.edit_message_text(f"Трейд успішно додано до Notion!\n\n"
-                                                  f"Оцінка вашого трейду - {score}\n"
-                                                  f"Категорія трейду - {trade_class}\n"
-                                                  f"Рекомендований ризик - {offer_risk}")
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text=f"Оцінка вашого трейду: {score}\n"
+                             f"Категорія трейду: {trade_class}\n"
+                             f"Рекомендований ризик: {offer_risk}"
+                    )
                 else:
-                    await query.edit_message_text("Трейд додано, але не вдалося отримати оцінку. Перевір логи.")
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text="Не вдалося отримати оцінку трейду. Перевір логи."
+                    )
                 
                 conn = heroku3.from_key(HEROKU_API_KEY)
                 heroku_app = conn.apps()['tradenotionbot-lg2']
