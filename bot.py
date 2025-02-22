@@ -139,14 +139,14 @@ def fetch_page_properties(page_id, notion_token):
     
     data = response.json()
     properties = data.get('properties', {})
+    logger.debug(f"Properties for page {page_id}: {json.dumps(properties, indent=2)}")
     
-    num = properties.get('Num', {}).get('number', None)
-    # Додаємо перевірку на None для властивості Date
-    date_property = properties.get('Date', None)
-    date = date_property.get('date', {}).get('start', None) if date_property else None
-    score = properties.get('Score', {}).get('formula', {}).get('number', None)
-    trade_class = properties.get('Trade Class', {}).get('formula', {}).get('string', None)
-    offer_risk = properties.get('Offer Risk', {}).get('formula', {}).get('number', None)
+    num = properties.get('Num', {}).get('number', "Немає даних")
+    date_property = properties.get('Date', {})
+    date = date_property.get('date', {}).get('start', "Немає даних") if isinstance(date_property, dict) else "Немає даних"
+    score = properties.get('Score', {}).get('formula', {}).get('number', "Немає даних")
+    trade_class = properties.get('Trade Class', {}).get('formula', {}).get('string', "Немає даних")
+    offer_risk = properties.get('Offer Risk', {}).get('formula', {}).get('number', "Немає даних")
     
     logger.info(f"Retrieved properties - Num: {num}, Date: {date}, Score: {score}, Trade Class: {trade_class}, Offer Risk: {offer_risk}")
     return {
