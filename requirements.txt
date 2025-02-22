@@ -1,5 +1,5 @@
 python-telegram-bot
 requests
-flask
+flask[async]
 hypercorn
 heroku3
