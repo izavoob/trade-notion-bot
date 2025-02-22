@@ -4,7 +4,7 @@ import os
 import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-from telegram.request import HTTPXRequest  # Оновлений імпорт для v20+
+from telegram.request import HTTPXRequest
 import heroku3
 import asyncio
 
@@ -32,18 +32,27 @@ except json.JSONDecodeError:
 user_data_lock = asyncio.Lock()
 logger.info(f"Initial user_data loaded: {json.dumps(user_data, indent=2)}")
 
-# Функція для збереження user_data в Heroku (викликається лише в ключових моментах)
+# Асинхронна функція для збереження user_data в Heroku
 async def save_user_data_to_heroku():
     async with user_data_lock:
+        logger.debug("Starting save_user_data_to_heroku")
         try:
-            conn = heroku3.from_key(HEROKU_API_KEY)
-            heroku_app = conn.apps()['tradenotionbot-lg2']  # Оновіть назву додатку, якщо потрібно
-            heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
-            logger.info("HEROKU_USER_DATA оновлено в Heroku.")
+            # Оборачиваем синхронный вызов в asyncio.to_thread
+            def sync_save():
+                conn = heroku3.from_key(HEROKU_API_KEY)
+                heroku_app = conn.apps()['tradenotionbot-lg2']  # Змініть на ваше ім'я додатку, якщо потрібно
+                config = heroku_app.config()
+                config['HEROKU_USER_DATA'] = json.dumps(user_data)
+                return True
+            
+            result = await asyncio.to_thread(sync_save)
+            logger.info("HEROKU_USER_DATA successfully updated in Heroku")
+            return result
         except Exception as e:
-            logger.error(f"Помилка оновлення HEROKU_USER_DATA: {str(e)}")
+            logger.error(f"Error saving to Heroku: {str(e)}")
+            raise
 
-# Функція для отримання ID бази "Classification" із батьківської сторінки
+# Функція для отримання ID бази "Classification"
 def fetch_classification_db_id(page_id, notion_token):
     logger.debug(f"Starting fetch_classification_db_id with page_id: {page_id}")
     url = f"https://api.notion.com/v1/blocks/{page_id}/children"
@@ -155,10 +164,17 @@ async def start(update, context):
         elif 'parent_page_id' not in user_data[auth_key]:
             await update.message.reply_text('Введи ID батьківської сторінки "A-B-C position Final Bot" (32 символи з URL):')
         elif 'classification_db_id' not in user_data[auth_key]:
+            logger.debug(f"Fetching classification_db_id for user {user_id}")
             classification_db_id = fetch_classification_db_id(user_data[auth_key]['parent_page_id'], user_data[auth_key]['notion_token'])
             if classification_db_id:
                 user_data[auth_key]['classification_db_id'] = classification_db_id
-                await save_user_data_to_heroku()
+                try:
+                    await save_user_data_to_heroku()
+                    logger.debug(f"Classification DB ID saved: {classification_db_id}")
+                except Exception as e:
+                    logger.error(f"Failed to save classification_db_id: {str(e)}")
+                    await update.message.reply_text(f"Помилка при збереженні бази даних: {str(e)}")
+                    return
                 keyboard = [
                     [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
                     [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')]
@@ -188,8 +204,13 @@ async def handle_text(update, context):
             text = update.message.text
             if len(text) == 32:
                 user_data[auth_key]['parent_page_id'] = text
-                await save_user_data_to_heroku()
-                await update.message.reply_text('ID сторінки збережено! Напиши /start.')
+                try:
+                    await save_user_data_to_heroku()
+                    logger.debug(f"Parent page ID saved: {text}")
+                    await update.message.reply_text('ID сторінки збережено! Напиши /start.')
+                except Exception as e:
+                    logger.error(f"Failed to save parent_page_id: {str(e)}")
+                    await update.message.reply_text(f"Помилка при збереженні ID сторінки: {str(e)}")
             else:
                 await update.message.reply_text('Неправильний ID. Введи 32 символи з URL сторінки "A-B-C position Final Bot".')
         elif 'waiting_for_rr' in user_data[auth_key]:
@@ -601,7 +622,12 @@ async def button(update, context):
                     'SL Position': user_data[auth_key].get('SL Position'),
                     'RR': user_data[auth_key].get('RR')
                 }
-                await save_user_data_to_heroku()
+                try:
+                    await save_user_data_to_heroku()
+                except Exception as e:
+                    logger.error(f"Failed to save last_trade: {str(e)}")
+                    await query.edit_message_text(f"Помилка при збереженні трейду: {str(e)}")
+                    return
                 await query.edit_message_text("Трейд успішно додано до Notion!")
                 
                 await asyncio.sleep(5)
@@ -816,7 +842,6 @@ async def button(update, context):
 def main():
     logger.info("Starting bot...")
     try:
-        # Використовуємо HTTPXRequest замість базового Request
         request = HTTPXRequest(connection_pool_size=8, read_timeout=60, write_timeout=60)
         application = Application.builder().token(TELEGRAM_TOKEN).request(request).build()
         application.add_handler(CommandHandler('start', start))
