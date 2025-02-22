@@ -178,7 +178,8 @@ async def start(update, context):
                 "**Щоб використовувати бота:**\n"
                 "1. Скопіюй сторінку за посиланням: https://www.notion.so/A-B-C-position-Final-Bot-1a084b079a8280d29d5ecc9316e02c5d\n"
                 "2. Авторизуйся нижче і надай доступ до скопійованої сторінки.\n"
-                "3. Введи ID батьківської сторінки 'A-B-C position Final Bot. Ось де вона:**1a084b079a8280d29d5ecc9316e02c5d**' (32 символи з URL)."
+                "3. Введи ID батьківської сторінки 'A-B-C position Final Bot."
+                "Ось де вона:**1a084b079a8280d29d5ecc9316e02c5d** (32 символи з URL)."
             )
             auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
             keyboard = [[InlineKeyboardButton("Авторизуватись у Notion", url=auth_url)]]
