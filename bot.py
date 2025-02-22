@@ -187,7 +187,7 @@ async def start(update, context):
             await update.message.reply_text(instructions, reply_markup=reply_markup)
             await context.bot.send_photo(
                 chat_id=update.message.chat_id,
-                photo='PHOTO_FILE_ID'  # Замініть на реальний file_id зображення
+                photo='AgACAgIAAxkBAAIB82e5q4fWpzE8mPVCJixuypC5LcuwAAL-7DEbFjHJSTMm00ODquyEAQADAgADeAADNgQ'  # Замініть на реальний file_id зображення
             )
         elif 'parent_page_id' not in user_data[auth_key]:
             await update.message.reply_text('Введи ID батьківської сторінки "A-B-C position Final Bot" (32 символи з URL):')
