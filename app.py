@@ -99,7 +99,7 @@ async def webhook():
     logger.info("Webhook processed successfully")
     return 'OK', 200
 
-# Функції для Notion API (додайте повні реалізації з вашого попереднього коду)
+# Функції для Notion API (додайте повні реалізації)
 def fetch_classification_db_id(page_id, notion_token):
     logger.debug(f"Fetching Classification DB ID for page: {page_id}")
     url = f"https://api.notion.com/v1/blocks/{page_id}/children"
@@ -115,20 +115,16 @@ def fetch_classification_db_id(page_id, notion_token):
     return None
 
 def get_max_num(classification_db_id, notion_token):
-    # Додайте повну реалізацію
-    return 0
+    return 0  # Додайте повну реалізацію
 
 def create_notion_page(user_id):
-    # Додайте повну реалізацію
-    return None, None
+    return None, None  # Додайте повну реалізацію
 
 def fetch_page_properties(page_id, notion_token):
-    # Додайте повну реалізацію
-    return None
+    return None  # Додайте повну реалізацію
 
 def fetch_last_5_trades(classification_db_id, notion_token):
-    # Додайте повну реалізацію
-    return None
+    return None  # Додайте повну реалізацію
 
 # Telegram хендлери
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -172,17 +168,19 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Додайте повну логіку
 
 def format_summary(data):
-    # Додайте повну реалізацію
-    return "Placeholder summary"
+    return "Placeholder summary"  # Додайте повну реалізацію
 
 # Налаштування хендлерів
 application.add_handler(CommandHandler('start', start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 application.add_handler(CallbackQueryHandler(button))
 
-# Запуск асинхронної ініціалізації перед стартом Flask
-asyncio.run(initialize_app())
+# Асинхронний запуск Flask і Telegram Application
+async def main():
+    await initialize_app()  # Ініціалізація та налаштування вебхука
+    port = int(os.environ.get('PORT', 10000))
+    logger.info(f"Starting Flask on port {port}")
+    await app.run_task(host='0.0.0.0', port=port)
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    asyncio.run(main())
