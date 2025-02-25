@@ -3,6 +3,7 @@ import json
 import requests
 from flask import Flask, request
 import logging
+import asyncio
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from datetime import datetime
@@ -50,7 +51,19 @@ user_data = load_user_data()
 
 # Ініціалізація Telegram Application
 application = Application.builder().token(TELEGRAM_TOKEN).build()
-application.initialize()  # Ініціалізація Application
+
+# Асинхронна функція для ініціалізації та налаштування вебхука
+async def initialize_app():
+    logger.info("Initializing Telegram Application...")
+    await application.initialize()  # Асинхронна ініціалізація
+    if TELEGRAM_TOKEN:
+        webhook_url = f"https://trade-notion-bot.onrender.com/{TELEGRAM_TOKEN}"
+        logger.info(f"Setting webhook to: {webhook_url}")
+        response = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={webhook_url}")
+        if response.status_code == 200:
+            logger.info("Webhook set successfully.")
+        else:
+            logger.error(f"Failed to set webhook: {response.status_code} - {response.text}")
 
 # Flask маршрути
 @app.route('/')
@@ -167,15 +180,8 @@ application.add_handler(CommandHandler('start', start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 application.add_handler(CallbackQueryHandler(button))
 
-# Налаштування вебхука при старті програми
-if TELEGRAM_TOKEN:
-    webhook_url = f"https://trade-notion-bot.onrender.com/{TELEGRAM_TOKEN}"
-    logger.info(f"Setting webhook to: {webhook_url}")
-    response = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={webhook_url}")
-    if response.status_code == 200:
-        logger.info("Webhook set successfully.")
-    else:
-        logger.error(f"Failed to set webhook: {response.status_code} - {response.text}")
+# Запуск асинхронної ініціалізації перед стартом Flask
+asyncio.run(initialize_app())
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
