@@ -50,6 +50,7 @@ user_data = load_user_data()
 
 # Ініціалізація Telegram Application
 application = Application.builder().token(TELEGRAM_TOKEN).build()
+application.initialize()  # Ініціалізація Application
 
 # Flask маршрути
 @app.route('/')
