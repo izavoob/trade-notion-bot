@@ -2,11 +2,9 @@ import os
 import json
 import requests
 from flask import Flask, request
-from threading import Thread
 import logging
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-import asyncio
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from datetime import datetime
 
 # Налаштування логування
@@ -25,7 +23,7 @@ CLIENT_ID = os.getenv('NOTION_CLIENT_ID')
 CLIENT_SECRET = os.getenv('NOTION_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('REDIRECT_URI')
 
-# Перевірка токена при старті
+# Перевірка токена
 if not TELEGRAM_TOKEN:
     logger.error("TELEGRAM_TOKEN is not set. Bot will not start.")
 else:
@@ -50,6 +48,9 @@ def save_user_data(data):
 
 user_data = load_user_data()
 
+# Ініціалізація Telegram Application
+application = Application.builder().token(TELEGRAM_TOKEN).build()
+
 # Flask маршрути
 @app.route('/')
 def hello():
@@ -73,7 +74,14 @@ def oauth_callback():
             return "Авторизація успішна! Повернись у Telegram і напиши /start."
     return "Помилка авторизації."
 
-# Функції для Notion API (скорочено для прикладу, додайте решту з попереднього коду)
+# Маршрут для вебхуків Telegram
+@app.route(f'/{TELEGRAM_TOKEN}', methods=['POST'])
+async def webhook():
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    await application.process_update(update)
+    return 'OK', 200
+
+# Функції для Notion API (скорочено, додайте решту з вашого коду)
 def fetch_classification_db_id(page_id, notion_token):
     logger.debug(f"Fetching Classification DB ID for page: {page_id}")
     url = f"https://api.notion.com/v1/blocks/{page_id}/children"
@@ -88,8 +96,24 @@ def fetch_classification_db_id(page_id, notion_token):
             return block["id"]
     return None
 
-# Telegram логіка (скорочено, додайте решту з попереднього коду)
-async def start(update, context):
+def get_max_num(classification_db_id, notion_token):
+    # Додайте реалізацію з вашого попереднього коду
+    return 0
+
+def create_notion_page(user_id):
+    # Додайте реалізацію з вашого попереднього коду
+    return None, None
+
+def fetch_page_properties(page_id, notion_token):
+    # Додайте реалізацію з вашого попереднього коду
+    return None
+
+def fetch_last_5_trades(classification_db_id, notion_token):
+    # Додайте реалізацію з вашого попереднього коду
+    return None
+
+# Telegram хендлери
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
     logger.info(f"Start command received from user {user_id}")
@@ -105,33 +129,51 @@ async def start(update, context):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(instructions, reply_markup=reply_markup)
     else:
-        await update.message.reply_text("Бот готовий! Вибери дію.")
+        auth_url = f"https://api.notion.com/v1/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&state={user_id}user"
+        keyboard = [
+            [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
+            [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
+            [InlineKeyboardButton("5 останніх трейдів", callback_data='view_last_5_trades')],
+            [InlineKeyboardButton("Повторна авторизація", url=auth_url)]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
 
-# Запуск Telegram-бота
-def run_bot():
-    if not TELEGRAM_TOKEN:
-        logger.error("Cannot start bot: TELEGRAM_TOKEN is missing.")
-        return
-    try:
-        logger.info("Starting Telegram bot polling...")
-        application = Application.builder().token(TELEGRAM_TOKEN).read_timeout(30).write_timeout(30).build()
-        application.add_handler(CommandHandler('start', start))
-        # Додайте інші хендлери з вашого коду тут
-        application.run_polling()
-    except Exception as e:
-        logger.error(f"Telegram bot failed to start: {e}")
+# Додайте інші хендлери (handle_text, button тощо) з вашого попереднього коду тут
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.message.from_user.id)
+    auth_key = f"{user_id}user"
+    logger.info(f"Text input received from user {user_id}: {update.message.text}")
+    # Додайте логіку з вашого попереднього коду
 
-# Головна функція
-if __name__ == '__main__':
-    # Запускаємо Telegram-бот у фоновому потоці
-    if TELEGRAM_TOKEN:
-        bot_thread = Thread(target=run_bot)
-        bot_thread.daemon = True
-        bot_thread.start()
-        logger.info("Bot thread started.")
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = str(query.from_user.id)
+    auth_key = f"{user_id}user"
+    logger.info(f"Button callback received from user {user_id}: {query.data}")
+    await query.answer()
+    # Додайте логіку з вашого попереднього коду
+
+def format_summary(data):
+    # Додайте реалізацію з вашого попереднього коду
+    return "Placeholder summary"
+
+# Налаштування хендлерів
+application.add_handler(CommandHandler('start', start))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+application.add_handler(CallbackQueryHandler(button))
+
+# Налаштування вебхука при старті
+@app.before_first_request
+def set_webhook():
+    webhook_url = f"https://trade-notion-bot.onrender.com/{TELEGRAM_TOKEN}"
+    logger.info(f"Setting webhook to: {webhook_url}")
+    response = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={webhook_url}")
+    if response.status_code == 200:
+        logger.info("Webhook set successfully.")
     else:
-        logger.error("Bot thread not started due to missing TELEGRAM_TOKEN.")
-    
-    # Запускаємо Flask
+        logger.error(f"Failed to set webhook: {response.status_code} - {response.text}")
+
+if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
