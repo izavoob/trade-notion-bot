@@ -81,7 +81,7 @@ async def webhook():
     await application.process_update(update)
     return 'OK', 200
 
-# Функції для Notion API (скорочено, додайте решту з вашого коду)
+# Функції для Notion API (додайте повні реалізації з вашого попереднього коду)
 def fetch_classification_db_id(page_id, notion_token):
     logger.debug(f"Fetching Classification DB ID for page: {page_id}")
     url = f"https://api.notion.com/v1/blocks/{page_id}/children"
@@ -97,19 +97,19 @@ def fetch_classification_db_id(page_id, notion_token):
     return None
 
 def get_max_num(classification_db_id, notion_token):
-    # Додайте реалізацію з вашого попереднього коду
+    # Додайте повну реалізацію
     return 0
 
 def create_notion_page(user_id):
-    # Додайте реалізацію з вашого попереднього коду
+    # Додайте повну реалізацію
     return None, None
 
 def fetch_page_properties(page_id, notion_token):
-    # Додайте реалізацію з вашого попереднього коду
+    # Додайте повну реалізацію
     return None
 
 def fetch_last_5_trades(classification_db_id, notion_token):
-    # Додайте реалізацію з вашого попереднього коду
+    # Додайте повну реалізацію
     return None
 
 # Telegram хендлери
@@ -139,12 +139,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
 
-# Додайте інші хендлери (handle_text, button тощо) з вашого попереднього коду тут
+# Додайте решту хендлерів (handle_text, button тощо) з вашого попереднього коду
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
     logger.info(f"Text input received from user {user_id}: {update.message.text}")
-    # Додайте логіку з вашого попереднього коду
+    # Додайте повну логіку з вашого коду
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -152,10 +152,10 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     auth_key = f"{user_id}user"
     logger.info(f"Button callback received from user {user_id}: {query.data}")
     await query.answer()
-    # Додайте логіку з вашого попереднього коду
+    # Додайте повну логіку з вашого коду
 
 def format_summary(data):
-    # Додайте реалізацію з вашого попереднього коду
+    # Додайте повну реалізацію
     return "Placeholder summary"
 
 # Налаштування хендлерів
@@ -163,9 +163,8 @@ application.add_handler(CommandHandler('start', start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 application.add_handler(CallbackQueryHandler(button))
 
-# Налаштування вебхука при старті
-@app.before_first_request
-def set_webhook():
+# Налаштування вебхука при старті програми
+if TELEGRAM_TOKEN:
     webhook_url = f"https://trade-notion-bot.onrender.com/{TELEGRAM_TOKEN}"
     logger.info(f"Setting webhook to: {webhook_url}")
     response = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={webhook_url}")
