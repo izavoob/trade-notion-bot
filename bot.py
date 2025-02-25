@@ -4,7 +4,6 @@ import os
 import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-import heroku3
 import asyncio
 from datetime import datetime
 
@@ -20,11 +19,24 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CLIENT_ID = os.getenv('NOTION_CLIENT_ID')
 CLIENT_SECRET = os.getenv('NOTION_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('REDIRECT_URI')
-HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 
-user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
+# Завантажуємо user_data із файлу
+USER_DATA_FILE = 'user_data.json'
 user_data_lock = asyncio.Lock()
-logger.info(f"Initial user_data loaded from HEROKU_USER_DATA: {json.dumps(user_data, indent=2)}")
+
+def load_user_data():
+    try:
+        with open(USER_DATA_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def save_user_data(data):
+    with open(USER_DATA_FILE, 'w') as f:
+        json.dump(data, f)
+
+user_data = load_user_data()
+logger.info(f"Initial user_data loaded: {json.dumps(user_data, indent=2)}")
 
 # Функція для отримання ID бази "Classification" із батьківської сторінки
 def fetch_classification_db_id(page_id, notion_token):
@@ -58,12 +70,12 @@ def get_max_num(classification_db_id, notion_token):
     }
     payload = {
         "sorts": [{"property": "Num", "direction": "descending"}],
-        "page_size": 1  # Беремо лише останній запис із найбільшим Num
+        "page_size": 1
     }
     response = requests.post(url, json=payload, headers=headers)
     if response.status_code != 200:
         logger.error(f"Failed to fetch max Num: {response.status_code} - {response.text}")
-        return 0  # Якщо помилка, починаємо з 1
+        return 0
     data = response.json()
     results = data.get("results", [])
     if results:
@@ -71,9 +83,9 @@ def get_max_num(classification_db_id, notion_token):
         logger.info(f"Max Num found: {max_num}")
         return max_num
     logger.info("No trades found, starting Num from 1")
-    return 0  # Якщо база порожня, починаємо з 1
+    return 0
 
-# Функція для створення сторінки в Notion із датою, назвою "Trade" і порядковим номером "Num"
+# Функція для створення сторінки в Notion
 def create_notion_page(user_id):
     logger.debug(f"Starting create_notion_page for user {user_id}")
     url = 'https://api.notion.com/v1/pages'
@@ -85,15 +97,15 @@ def create_notion_page(user_id):
     
     trigger_values = user_data[user_id].get('Trigger', [])
     vc_values = user_data[user_id].get('VC', [])
-    current_date = datetime.now().strftime("%Y-%m-%d")  # Формат ISO 8601: 2025-02-22
+    current_date = datetime.now().strftime("%Y-%m-%d")
     max_num = get_max_num(user_data[user_id]['classification_db_id'], user_data[user_id]["notion_token"])
-    new_num = max_num + 1  # Новий порядковий номер
+    new_num = max_num + 1
     
     payload = {
         'parent': {'database_id': user_data[user_id]['classification_db_id']},
         'properties': {
-            'Title': {'title': [{'text': {'content': 'Trade'}}]},  # Припускаємо, що колонка називається "Title"
-            'Num': {'number': new_num},  # Додаємо порядковий номер
+            'Title': {'title': [{'text': {'content': 'Trade'}}]},
+            'Num': {'number': new_num},
             'Date': {'date': {'start': current_date}},
             'Pair': {'select': {'name': user_data[user_id]['Pair']}},
             'Session': {'select': {'name': user_data[user_id]['Session']}},
@@ -144,7 +156,7 @@ def fetch_page_properties(page_id, notion_token):
     num = properties.get('Num', {}).get('number', "Немає даних")
     date_property = properties.get('Date', {})
     date = date_property.get('date', "Немає даних") if isinstance(date_property, dict) else "Немає даних"
-    if isinstance(date, dict):  # Якщо 'date' повертає словник (наприклад, {"start": "2025-02-22"})
+    if isinstance(date, dict):
         date = date.get('start', "Немає даних")
     score = properties.get('Score', {}).get('formula', {}).get('number', "Немає даних")
     trade_class = properties.get('Trade Class', {}).get('formula', {}).get('string', "Немає даних")
@@ -215,9 +227,7 @@ async def start(update, context):
             classification_db_id = fetch_classification_db_id(user_data[auth_key]['parent_page_id'], user_data[auth_key]['notion_token'])
             if classification_db_id:
                 user_data[auth_key]['classification_db_id'] = classification_db_id
-                conn = heroku3.from_key(HEROKU_API_KEY)
-                heroku_app = conn.apps()['tradenotionbot-lg2']
-                heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+                save_user_data(user_data)
                 keyboard = [
                     [InlineKeyboardButton("Додати новий трейд", callback_data='add_trade')],
                     [InlineKeyboardButton("Переглянути останній трейд", callback_data='view_last_trade')],
@@ -252,9 +262,7 @@ async def handle_text(update, context):
             text = update.message.text
             if len(text) == 32:
                 user_data[auth_key]['parent_page_id'] = text
-                conn = heroku3.from_key(HEROKU_API_KEY)
-                heroku_app = conn.apps()['tradenotionbot-lg2']
-                heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+                save_user_data(user_data)
                 await update.message.reply_text('ID сторінки збережено! Напиши /start.')
             else:
                 await update.message.reply_text('Неправильний ID. Введи 32 символи з URL сторінки "A-B-C position Final Bot".')
@@ -705,9 +713,7 @@ async def button(update, context):
                              f"Не вдалося отримати оцінку трейду. Перевір логи."
                     )
                 
-                conn = heroku3.from_key(HEROKU_API_KEY)
-                heroku_app = conn.apps()['tradenotionbot-lg2']
-                heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+                save_user_data(user_data)
                 for key in ['waiting_for_rr', 'Pair', 'Session', 'Context', 'Test POI', 'Delivery to POI', 'Point A', 
                             'Trigger', 'VC', 'Entry Model', 'Entry TF', 'Point B', 'SL Position', 'RR']:
                     if key in user_data[auth_key]:
@@ -731,7 +737,7 @@ async def button(update, context):
     elif query.data == 'view_last_trade':
         async with user_data_lock:
             if 'last_trades' in user_data[auth_key] and user_data[auth_key]['last_trades']:
-                last_trade = user_data[auth_key]['last_trades'][0]['properties']  # Беремо останній доданий трейд
+                last_trade = user_data[auth_key]['last_trades'][0]['properties']
                 num = last_trade['Num'] if last_trade['Num'] is not None else "Немає даних"
                 date = last_trade['Date'] if last_trade['Date'] is not None else "Немає даних"
                 score = last_trade['Score'] if last_trade['Score'] is not None else "Немає даних"

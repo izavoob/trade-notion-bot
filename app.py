@@ -1,7 +1,6 @@
 import os
 import json
 import requests
-import heroku3
 from flask import Flask, request
 from threading import Lock
 
@@ -10,11 +9,23 @@ app = Flask(__name__)
 CLIENT_ID = os.getenv('NOTION_CLIENT_ID')
 CLIENT_SECRET = os.getenv('NOTION_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('REDIRECT_URI')
-HEROKU_API_KEY = os.getenv('HEROKU_API_KEY')
 
-# Завантажуємо user_data із змінної Heroku
-user_data = json.loads(os.getenv('HEROKU_USER_DATA', '{}'))
-user_data_lock = Lock()  # Додаємо блокування для синхронізації
+# Завантажуємо user_data із файлу
+USER_DATA_FILE = 'user_data.json'
+user_data_lock = Lock()
+
+def load_user_data():
+    try:
+        with open(USER_DATA_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def save_user_data(data):
+    with open(USER_DATA_FILE, 'w') as f:
+        json.dump(data, f)
+
+user_data = load_user_data()
 
 @app.route('/')
 def hello():
@@ -33,12 +44,9 @@ def oauth_callback():
         ).json()
         print(f"Notion відповідь: {token_response}")
         if 'access_token' in token_response:
-            with user_data_lock:  # Синхронізований доступ до user_data
+            with user_data_lock:
                 user_data[user_id] = {'notion_token': token_response['access_token']}
-                # Оновлюємо HEROKU_USER_DATA через Heroku API
-                conn = heroku3.from_key(HEROKU_API_KEY)
-                heroku_app = conn.apps()['tradenotionbot-lg2']
-                heroku_app.config()['HEROKU_USER_DATA'] = json.dumps(user_data)
+                save_user_data(user_data)
                 print(f"Збережено user_data: {user_data}")
             return "Авторизація успішна! Повернись у Telegram і напиши /start."
     return "Помилка авторизації."
