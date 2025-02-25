@@ -54,6 +54,7 @@ application = Application.builder().token(TELEGRAM_TOKEN).build()
 # Flask маршрути
 @app.route('/')
 def hello():
+    logger.info("Received GET request to /")
     return "Бот працює! Версія 2"
 
 @app.route('/callback', methods=['GET'])
@@ -77,8 +78,11 @@ def oauth_callback():
 # Маршрут для вебхуків Telegram
 @app.route(f'/{TELEGRAM_TOKEN}', methods=['POST'])
 async def webhook():
+    logger.info("Received Telegram webhook request")
     update = Update.de_json(request.get_json(force=True), application.bot)
+    logger.debug(f"Webhook update: {update}")
     await application.process_update(update)
+    logger.info("Webhook processed successfully")
     return 'OK', 200
 
 # Функції для Notion API (додайте повні реалізації з вашого попереднього коду)
@@ -139,12 +143,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text('Привіт! Вибери дію:', reply_markup=reply_markup)
 
-# Додайте решту хендлерів (handle_text, button тощо) з вашого попереднього коду
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.message.from_user.id)
     auth_key = f"{user_id}user"
     logger.info(f"Text input received from user {user_id}: {update.message.text}")
-    # Додайте повну логіку з вашого коду
+    # Додайте повну логіку
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -152,7 +155,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     auth_key = f"{user_id}user"
     logger.info(f"Button callback received from user {user_id}: {query.data}")
     await query.answer()
-    # Додайте повну логіку з вашого коду
+    # Додайте повну логіку
 
 def format_summary(data):
     # Додайте повну реалізацію
